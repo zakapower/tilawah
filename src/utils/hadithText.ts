@@ -14,70 +14,149 @@ export function normalizeHadithText(text: string): string {
     .trim()
 }
 
+const RU_SPEECH =
+  '(?:сказал(?:а|и|ший)?|сообщил(?:а|и|ший)?|спросил(?:а|и|ший)?|рассказал(?:а|и|ший)?|передал(?:а|и|ший)?|передавал(?:а|и)?|рассказывал(?:а|и)?)'
+
+const QUOTE_START = '[—–\\-«"“]'
+
 function looksLikeIsnadLead(lead: string): boolean {
   const t = lead.trim()
-  if (t.length < 8 || t.length > 220) return false
+  if (t.length < 6 || t.length > 800) return false
   return (
     /^(it was )?narrated\b/i.test(t) ||
     /^reported\b/i.test(t) ||
-    /^(нам )?рассказал/i.test(t) ||
-    /^сообщается/i.test(t) ||
-    /^передал/i.test(t) ||
-    /^передается/i.test(t) ||
-    /\b(сказал|сообщил|спросил|рассказал|передал|рассказывал|передавал)\s*:?\s*$/i.test(
-      t,
-    ) ||
-    /\b(said|asked|reported|narrated)\s*:?\s*$/i.test(t) ||
-    /\bnarrat/i.test(t)
+    /^нам\s+(рассказал|сообщил)/i.test(t) ||
+    /^сообщается\b/i.test(t) ||
+    /^передают\b/i.test(t) ||
+    /^передал\b/i.test(t) ||
+    /^передается\b/i.test(t) ||
+    /^от\s+/i.test(t) ||
+    /\bnarrat/i.test(t) ||
+    new RegExp(`${RU_SPEECH}\\s*:?\\s*$`, 'i').test(t) ||
+    /(?:о том, что|то, что)\s*$/i.test(t) ||
+    /,\s*что\s*$/i.test(t) ||
+    /\b(said|asked|reported|narrated)\s*:?\s*$/i.test(t)
   )
 }
 
-function splitAt(lead: string, body: string): { lead: string; body: string } | null {
+function finishLead(lead: string): string {
+  const l = lead.trim()
+  if (
+    l.endsWith(':') ||
+    /,\s*что$/i.test(l) ||
+    /о том, что$/i.test(l) ||
+    /\bто, что$/i.test(l)
+  ) {
+    return l
+  }
+  return `${l}:`
+}
+
+function splitAt(
+  lead: string,
+  body: string,
+): { lead: string; body: string } | null {
   const l = lead.trim()
   const b = body.trim()
   if (!b || !looksLikeIsnadLead(l)) return null
-  const displayLead =
-    l.endsWith(':') || /,\s*что$/i.test(l) ? l : `${l}:`
-  return { lead: displayLead, body: b }
+  return { lead: finishLead(l), body: b }
+}
+
+/**
+ * Index of "о том, что" / "то, что" that ends the isnad opening.
+ * Prefer the last marker in the first ~700 chars so chained
+ * "рассказал … о том, что X … о том, что matn" keeps the matn only.
+ */
+function findRuThatIndex(text: string): number {
+  const window = text.slice(0, 700)
+  const re = /о том, что|то, что/giu
+  let last = -1
+  let m: RegExpExecArray | null
+  while ((m = re.exec(window))) last = m.index
+  return last
 }
 
 /** Split isnad opener ("Narrated…" / "Сообщается…") from the hadith matn. */
-export function splitHadithLead(text: string): { lead: string; body: string } | null {
+export function splitHadithLead(
+  text: string,
+): { lead: string; body: string } | null {
   const cleaned = normalizeHadithText(text)
   if (!cleaned) return null
 
-  // RU: "…сказал:\n— матн" / "…сказал: «матн"
-  const ruMatn = cleaned.match(
-    /^([\s\S]{8,220}?(?:сказал|сообщил|спросил|передал|рассказал|передавал))\s*:\s*\n?\s*([—«"][\s\S]+)$/iu,
+  // 1) RU long chains: split on first "о том, что" / "то, что" in the opening.
+  const thatAt = findRuThatIndex(cleaned)
+  if (thatAt >= 10) {
+    const connectorMatch = cleaned.slice(thatAt).match(/^(о том, что|то, что)\s+/iu)
+    if (connectorMatch) {
+      const lead = `${cleaned.slice(0, thatAt).replace(/[,:\s]+$/, '')}, ${connectorMatch[1]}`
+      const body = cleaned.slice(thatAt + connectorMatch[0].length)
+      const hit = splitAt(lead, body)
+      if (hit) return hit
+    }
+  }
+
+  // 2) Speech verb + colon + dash/quote (EN/RU). First boundary only.
+  const speechQuote = new RegExp(
+    `^([\\s\\S]{6,800}?${RU_SPEECH})\\s*:\\s*\\n?\\s*(${QUOTE_START}[\\s\\S]+)$`,
+    'iu',
   )
-  if (ruMatn) {
-    const hit = splitAt(`${ruMatn[1]}:`, ruMatn[2])
+  const sq = cleaned.match(speechQuote)
+  if (sq) {
+    const hit = splitAt(`${sq[1]}:`, sq[2])
     if (hit) return hit
   }
 
-  // Colon immediately before quoted matn (EN/RU).
-  const quoted = cleaned.match(/^([\s\S]{8,220}?):\s*\n?\s*([—«"][\s\S]+)$/)
+  // 3) "Сообщается/Передают со слов …, что матн"
+  const soSlov = cleaned.match(
+    /^((?:сообщается|передают)\s+со\s+слов[\s\S]{3,400}?,\s*что)\s*([\s\S].+)$/iu,
+  )
+  if (soSlov && soSlov[2].trim().length > 8) {
+    return { lead: soSlov[1].trim(), body: soSlov[2].trim() }
+  }
+
+  // 4) "Передают со слов X: матн"
+  const peredayutColon = cleaned.match(
+    /^(передают\s+со\s+слов[\s\S]{3,280}?):\s*\n?\s*([\s\S].+)$/iu,
+  )
+  if (peredayutColon && peredayutColon[2].trim().length > 8) {
+    return {
+      lead: finishLead(peredayutColon[1]),
+      body: peredayutColon[2].trim(),
+    }
+  }
+
+  // 5) Colon immediately before quoted matn.
+  const quoted = cleaned.match(
+    new RegExp(`^([\\s\\S]{6,800}?):\\s*\\n?\\s*(${QUOTE_START}[\\s\\S]+)$`),
+  )
   if (quoted) {
     const hit = splitAt(quoted[1], quoted[2])
     if (hit) return hit
   }
 
-  // EN: "Narrated …: matn"
+  // 6) EN: "Narrated …: matn"
   const colon = cleaned.indexOf(':')
-  if (colon > 0 && colon <= 200) {
-    const hit = splitAt(cleaned.slice(0, colon), cleaned.slice(colon + 1))
-    if (hit) return hit
+  if (colon > 0 && colon <= 220) {
+    const lead = cleaned.slice(0, colon)
+    if (/^(it was )?narrated\b/i.test(lead) || /^reported\b/i.test(lead)) {
+      const hit = splitAt(lead, cleaned.slice(colon + 1))
+      if (hit) return hit
+    }
   }
 
-  // RU: "…, что матн"
-  const ruThat = cleaned.match(/^(.{10,180}?,\s*что)\s+([\s\S].+)$/i)
-  if (ruThat && /сообщается|передал|рассказал|передается/i.test(ruThat[1])) {
+  // 7) RU: "Сообщается от X, что матн"
+  const ruThat = cleaned.match(/^(.{10,400}?,\s*что)\s*([\s\S].+)$/i)
+  if (
+    ruThat &&
+    /сообщается|передал|рассказал|передается|передают/i.test(ruThat[1]) &&
+    ruThat[2].trim().length > 8
+  ) {
     return { lead: ruThat[1].trim(), body: ruThat[2].trim() }
   }
 
-  // EN: "It was narrated from … that matn"
+  // 8) EN: "It was narrated from … that matn"
   const enThat = cleaned.match(
-    /^((?:it was )?narrated[\s\S]{8,180}?)\s+that\s+([\s\S].+)$/i,
+    /^((?:it was )?narrated[\s\S]{8,220}?)\s+that\s+([\s\S].+)$/i,
   )
   if (enThat) {
     return { lead: enThat[1].trim(), body: enThat[2].trim() }
