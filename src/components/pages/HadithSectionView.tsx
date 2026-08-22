@@ -17,16 +17,16 @@ import { useApp } from '@/context/AppContext'
 import './Reader.css'
 
 function HadithTranslation({ text }: { text: string }) {
-  const cleaned = normalizeHadithText(text).replace(/\s*\n\s*/g, ' ')
+  const cleaned = normalizeHadithText(text)
   const parts = splitHadithLead(cleaned)
   if (!parts) {
-    return <p className="ayah__tr">{cleaned}</p>
+    return <p className="ayah__tr ayah__tr--hadith">{cleaned}</p>
   }
   return (
-    <p className="ayah__tr">
-      <strong className="ayah__tr-lead">{parts.lead}</strong>
-      {parts.body}
-    </p>
+    <div className="ayah__tr ayah__tr--hadith">
+      <p className="ayah__tr-lead">{parts.lead}</p>
+      <p className="ayah__tr-body">{parts.body}</p>
+    </div>
   )
 }
 

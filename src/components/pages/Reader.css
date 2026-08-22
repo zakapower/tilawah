@@ -385,7 +385,8 @@
   overflow-wrap: anywhere;
 }
 
-.ayah__bilingual > .ayah__tr {
+.ayah__bilingual > .ayah__tr,
+.ayah__bilingual > .ayah__tr--hadith {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -401,8 +402,20 @@
 }
 
 .ayah__tr-lead {
-  display: inline;
-  font-weight: 700;
+  display: block;
+  margin: 0 0 0.5em;
+  font-size: calc(0.9rem * var(--reader-tr-scale, 1));
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--muted);
+  text-align: left;
+  text-align-last: left;
+}
+
+.ayah__tr-body {
+  display: block;
+  margin: 0;
+  font-weight: 400;
   color: var(--ink);
 }
 
@@ -559,7 +572,8 @@
     text-align-last: right;
   }
 
-  .ayah__bilingual > .ayah__tr {
+  .ayah__bilingual > .ayah__tr,
+  .ayah__bilingual > .ayah__tr--hadith {
     text-align: justify;
     text-align-last: left;
   }
