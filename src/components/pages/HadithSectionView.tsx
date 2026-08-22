@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { fetchHadithSection, fetchHadithSections, peekHadithSection, peekHadithSections, prefetchHadithSection, prefetchNearbyHadithSections, seedHadithSection, seedHadithSections } from '@/api/hadith'
+import { fetchHadithSection, fetchHadithSections, hadithSectionNeedsRuBackfill, peekHadithSection, peekHadithSections, prefetchHadithSection, prefetchNearbyHadithSections, seedHadithSection, seedHadithSections, warmHadithSectionBothLangs } from '@/api/hadith'
 import { getHadithCollection } from '@/data/hadithCatalog'
 import type { HadithItem, HadithSectionMeta } from '@/data/types'
 import { CopyQuoteButton } from '@/components/CopyQuoteButton'
@@ -108,7 +108,9 @@ export function HadithSectionView({
     const secs = init?.sections ?? peekHadithSections(book.id, lang)
     const items =
       init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
-    if (secs && items) {
+    const ruNeedsBackfill =
+      lang === 'ru' && Boolean(items && hadithSectionNeedsRuBackfill(items))
+    if (secs && items && !ruNeedsBackfill) {
       const sec = secs.find((s) => s.id === sectionId)
       return {
         sections: secs,
@@ -171,6 +173,7 @@ export function HadithSectionView({
       seedHadithSections(book.id, l, pack.sections)
       if (pack.hadiths) seedHadithSection(book.id, sectionId, l, pack.hadiths)
     }
+    warmHadithSectionBothLangs(book.id, sectionId)
   }, [book, sectionId, initialByLang])
 
   useEffect(() => {
@@ -185,6 +188,32 @@ export function HadithSectionView({
     const cachedSecs = init?.sections ?? peekHadithSections(book.id, lang)
     const cachedItems =
       init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
+    const ruNeedsBackfill =
+      lang === 'ru' &&
+      Boolean(cachedItems && hadithSectionNeedsRuBackfill(cachedItems))
+
+    if (cachedSecs && cachedItems && !ruNeedsBackfill) {
+      const sec = cachedSecs.find((s) => s.id === sectionId)
+      setSections(cachedSecs)
+      setTitle(init?.title ?? sec?.name ?? sectionId)
+      setHadiths(cachedItems)
+      if (init) {
+        seedHadithSections(book.id, lang, init.sections)
+        if (init.hadiths) {
+          seedHadithSection(book.id, sectionId, lang, init.hadiths)
+        }
+      }
+      prefetchNearbyHadithSections(
+        book.id,
+        sectionId,
+        lang,
+        cachedSecs.map((s) => s.id),
+      )
+      return () => {
+        cancelled = true
+      }
+    }
+
     if (cachedSecs) {
       const sec = cachedSecs.find((s) => s.id === sectionId)
       setSections(cachedSecs)
@@ -193,7 +222,7 @@ export function HadithSectionView({
     } else {
       setSections(null)
     }
-    if (cachedItems) {
+    if (cachedItems && !ruNeedsBackfill) {
       setHadiths(cachedItems)
       if (init?.hadiths) {
         seedHadithSection(book.id, sectionId, lang, init.hadiths)

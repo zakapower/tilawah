@@ -1,3 +1,10 @@
+/** True when a hadith translation looks like finished Russian (not empty / English). */
+export function ruTranslationLooksComplete(text: string): boolean {
+  const t = normalizeHadithText(text)
+  if (!t) return false
+  return /[а-яё]/i.test(t)
+}
+
 /** Fix literal `\n` / `\r\n` from hadith CDN JSON into real newlines. */
 export function normalizeHadithText(text: string): string {
   return text

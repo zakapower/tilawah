@@ -4,7 +4,7 @@ import { getHadithSectionsStatic } from '../data/hadithSectionsMeta'
 import { sectionNameRu } from '../data/hadithSectionsRu'
 import { translateEnToRuMany } from '../lib/translateEnRu'
 import { cacheGet, cacheSet, warmCache } from '../utils/pageCache'
-import { normalizeHadithText } from '../utils/hadithText'
+import { normalizeHadithText, ruTranslationLooksComplete } from '../utils/hadithText'
 
 const CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1'
 const IMUSLIM = 'https://i-muslim.com/api/v1/translations/hadith'
@@ -115,8 +115,8 @@ async function buildRuMap(
   const result = new Map<number, string>()
   for (const h of arabic) {
     const n = h.hadithnumber
-    const text = primary.get(n) || imuslim?.get(n) || ''
-    if (text) result.set(n, text)
+    const raw = primary.get(n) || imuslim?.get(n) || ''
+    if (ruTranslationLooksComplete(raw)) result.set(n, raw)
   }
 
   if (!translateBatch) return result
@@ -230,8 +230,33 @@ export type FetchHadithSectionOptions = {
   onPartial?: (items: HadithItem[]) => void
 }
 
-function sectionHasTranslationGaps(items: HadithItem[]) {
-  return items.some((h) => !h.text)
+function sectionNeedsRuBackfill(items: HadithItem[]) {
+  return items.some((h) => !ruTranslationLooksComplete(h.text))
+}
+
+function shouldPersistSection(
+  lang: Lang,
+  items: HadithItem[],
+  machineTranslate: boolean,
+) {
+  if (lang !== 'ru') return true
+  if (!machineTranslate) return false
+  return !sectionNeedsRuBackfill(items)
+}
+
+function storeSectionItems(
+  key: string,
+  items: HadithItem[],
+  lang: Lang,
+  machineTranslate: boolean,
+) {
+  cacheSet(SECTION_NS, key, items, {
+    persist: shouldPersistSection(lang, items, machineTranslate),
+  })
+}
+
+export function hadithSectionNeedsRuBackfill(items: HadithItem[]) {
+  return sectionNeedsRuBackfill(items)
 }
 
 export async function fetchHadithSection(
@@ -256,7 +281,7 @@ export async function fetchHadithSection(
     if (
       lang !== 'ru' ||
       !translateBatch ||
-      !sectionHasTranslationGaps(cached)
+      !sectionNeedsRuBackfill(cached)
     ) {
       return cached
     }
@@ -287,7 +312,7 @@ export async function fetchHadithSection(
       undefined,
     )
     items = mapHadiths(bookId, arList, primary)
-    cacheSet(SECTION_NS, key, items)
+    storeSectionItems(key, items, lang, machineTranslate)
     options?.onPartial?.(items)
 
     if (translateBatch) {
@@ -310,7 +335,7 @@ export async function fetchHadithSection(
     const enMap = textMapFromHadiths(english.hadiths ?? [])
     const primary = await buildRuMap(arList, imuslim, enMap, undefined, undefined)
     items = mapHadiths(bookId, arList, primary)
-    cacheSet(SECTION_NS, key, items)
+    storeSectionItems(key, items, lang, machineTranslate)
     options?.onPartial?.(items)
 
     if (translateBatch) {
@@ -336,7 +361,7 @@ export async function fetchHadithSection(
     options?.onPartial?.(items)
   }
 
-  cacheSet(SECTION_NS, key, items)
+  storeSectionItems(key, items, lang, machineTranslate)
   return items
 }
 
@@ -355,6 +380,12 @@ export function seedHadithSection(
   items: HadithItem[],
 ) {
   cacheSet(SECTION_NS, sectionItemsKey(bookId, sectionId, lang), items)
+}
+
+/** Warm both language caches for a chapter (for lang tab switching). */
+export function warmHadithSectionBothLangs(bookId: string, sectionId: string) {
+  warmCache(() => fetchHadithSection(bookId, sectionId, 'ru'))
+  warmCache(() => fetchHadithSection(bookId, sectionId, 'en'))
 }
 
 /** Prefetch adjacent hadith chapters. */

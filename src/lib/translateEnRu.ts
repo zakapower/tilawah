@@ -12,7 +12,15 @@ function canUseStorage() {
 }
 
 function storeKey() {
-  return 'tilawah-tr-en-ru-v1'
+  return 'tilawah-tr-en-ru-v2'
+}
+
+function isValidRuTranslation(ru: string, source: string): boolean {
+  const t = ru.trim()
+  if (!t) return false
+  if (!/[а-яё]/i.test(t)) return false
+  if (t === source.trim()) return false
+  return true
 }
 
 function readStore(): Record<string, string> {
@@ -146,7 +154,7 @@ export async function translateEnToRuMany(texts: string[]): Promise<string[]> {
 
   for (let i = 0; i < texts.length; i++) {
     const hit = cacheGet(keys[i])
-    if (hit) out[i] = hit
+    if (hit && isValidRuTranslation(hit, texts[i])) out[i] = hit
     else missingIdx.push(i)
   }
 
@@ -175,9 +183,13 @@ export async function translateEnToRuMany(texts: string[]): Promise<string[]> {
 
   for (let j = 0; j < missingIdx.length; j++) {
     const i = missingIdx[j]
-    const ru = (translated[j] || texts[i]).trim() || texts[i]
-    out[i] = ru
-    cacheSet(keys[i], ru)
+    const candidate = (translated[j] || '').trim()
+    if (isValidRuTranslation(candidate, texts[i])) {
+      out[i] = candidate
+      cacheSet(keys[i], candidate)
+    } else {
+      out[i] = ''
+    }
   }
 
   return out
@@ -190,14 +202,16 @@ export async function translateEnToRuManyDirect(
   return mapPool(texts, CONCURRENCY, async (t) => {
     const key = hashText(t)
     const hit = cacheGet(key)
-    if (hit) return hit
+    if (hit && isValidRuTranslation(hit, t)) return hit
     try {
       const ru = await translateViaGtx(t)
-      const value = ru || t
-      cacheSet(key, value)
-      return value
+      if (isValidRuTranslation(ru, t)) {
+        cacheSet(key, ru)
+        return ru
+      }
+      return ''
     } catch {
-      return t
+      return ''
     }
   })
 }

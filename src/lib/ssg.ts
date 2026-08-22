@@ -26,6 +26,16 @@ export function hadithSectionStaticParams() {
   return params
 }
 
+export function isHadithSectionPregenerated(
+  apiBook: string,
+  sectionId: string,
+): boolean {
+  const sections = getHadithSectionsStatic(apiBook) ?? []
+  return sections
+    .slice(0, HADITH_SECTION_PREFETCH)
+    .some((s) => s.id === sectionId)
+}
+
 /** All hadith section paths for sitemap (static, no network). */
 export function allHadithSectionPaths() {
   return allHadithSectionPathParams()

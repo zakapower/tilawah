@@ -1,13 +1,15 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { HadithSectionView } from '@/components/pages/HadithSectionView'
-import { fetchHadithSections } from '@/api/hadith'
+import { fetchHadithSection, fetchHadithSections } from '@/api/hadith'
 import { getHadithCollection } from '@/data/hadithCatalog'
 import { getRequestLang } from '@/lib/request-lang'
 import {
   hadithSectionStaticParams,
+  isHadithSectionPregenerated,
   loadBothLangs,
 } from '@/lib/ssg'
+import { translateEnToRuManyForBuild } from '@/lib/translateEnRuBuildCache'
 import { clipDescription, pageAlternates, pageTitle } from '@/lib/site'
 
 /** First visit builds HTML; then cached (ISR). Avoids huge Vercel builds. */
@@ -53,20 +55,27 @@ export default async function HadithSectionPage({
 
   type Pack = {
     sections: Awaited<ReturnType<typeof fetchHadithSections>>
+    hadiths?: Awaited<ReturnType<typeof fetchHadithSection>>
     title: string
   }
 
-  // Only static chapter metadata on the server — hadith JSON + MT load on the client.
-  // Awaiting CDN / i-muslim / translate here blocked navigation and wedged the server.
+  const pregenerated =
+    book && isHadithSectionPregenerated(book.apiBook, sectionId)
+
   const initialByLang = book
     ? await loadBothLangs(async (lang): Promise<Pack | null> => {
         try {
           const sections = await fetchHadithSections(book.id, lang)
           const sec = sections.find((s) => s.id === sectionId)
-          return {
+          const base = {
             sections,
             title: sec?.name ?? sectionId,
           }
+          if (!pregenerated) return base
+          const hadiths = await fetchHadithSection(book.id, sectionId, lang, {
+            translateBatch: translateEnToRuManyForBuild,
+          })
+          return { ...base, hadiths }
         } catch {
           return null
         }

@@ -54,9 +54,15 @@ export function cacheGet<T>(ns: string, key: string): T | null {
   return null
 }
 
-export function cacheSet<T>(ns: string, key: string, value: T) {
+export function cacheSet<T>(
+  ns: string,
+  key: string,
+  value: T,
+  options?: { persist?: boolean },
+) {
   const full = `${ns}:${key}`
   mem.set(full, value)
+  if (options?.persist === false) return
   const store = readStore(ns)
   store[key] = value as unknown
   writeStore(ns, store)
