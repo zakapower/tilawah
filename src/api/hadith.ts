@@ -86,7 +86,7 @@ async function getImuslimRuMap(bookId: string): Promise<Map<number, string>> {
   let pending = imuslimPromises.get(bookId)
   if (!pending) {
     pending = fetchJson<ImuslimPayload>(`${IMUSLIM}/${bookId}/ru`, {
-      cache: typeof window === 'undefined' ? 'no-store' : 'force-cache',
+      cache: 'force-cache',
     }).then((payload) => {
       const map = new Map<number, string>()
       for (const item of payload.data?.items ?? []) {
@@ -109,7 +109,7 @@ async function buildRuMap(
   primary: Map<number, string>,
   enMap: Map<number, string>,
   imuslim?: Map<number, string>,
-  translateBatch: (texts: string[]) => Promise<string[]> = translateEnToRuMany,
+  translateBatch?: (texts: string[]) => Promise<string[]>,
 ): Promise<Map<number, string>> {
   // Only numbers from this Arabic section — never the whole-book imuslim map.
   const result = new Map<number, string>()
@@ -118,6 +118,8 @@ async function buildRuMap(
     const text = primary.get(n) || imuslim?.get(n) || ''
     if (text) result.set(n, text)
   }
+
+  if (!translateBatch) return result
 
   const missing: Array<{ n: number; en: string }> = []
   for (const h of arabic) {
@@ -220,20 +222,46 @@ function mapHadiths(
     .filter((h) => h.text || h.arabic)
 }
 
+export type FetchHadithSectionOptions = {
+  translateBatch?: (texts: string[]) => Promise<string[]>
+  /** When false, skip EN→RU machine translate (fast path / prefetch). Default true. */
+  machineTranslate?: boolean
+  /** Called after CDN/i-muslim texts are ready, before machine translate finishes. */
+  onPartial?: (items: HadithItem[]) => void
+}
+
+function sectionHasTranslationGaps(items: HadithItem[]) {
+  return items.some((h) => !h.text)
+}
+
 export async function fetchHadithSection(
   bookId: string,
   sectionId: string,
   lang: Lang,
-  options?: { translateBatch?: (texts: string[]) => Promise<string[]> },
+  options?: FetchHadithSectionOptions,
 ): Promise<HadithItem[]> {
   const col = getHadithCollection(bookId)
   if (!col) throw new Error('Unknown collection')
 
-  const translateBatch = options?.translateBatch ?? translateEnToRuMany
+  const machineTranslate = options?.machineTranslate !== false
+  const translateBatch =
+    lang === 'ru' && machineTranslate
+      ? (options?.translateBatch ?? translateEnToRuMany)
+      : undefined
 
   const key = sectionItemsKey(bookId, sectionId, lang)
   const cached = peekHadithSection(bookId, sectionId, lang)
-  if (cached) return cached
+  if (cached) {
+    options?.onPartial?.(cached)
+    if (
+      lang !== 'ru' ||
+      !translateBatch ||
+      !sectionHasTranslationGaps(cached)
+    ) {
+      return cached
+    }
+    // Fall through: refresh from sources and fill RU gaps with MT.
+  }
 
   const arUrl = `${CDN}/editions/${col.editions.ar}/sections/${sectionId}.min.json`
   const enUrl = `${CDN}/editions/${col.editions.en}/sections/${sectionId}.min.json`
@@ -250,14 +278,28 @@ export async function fetchHadithSection(
       needImuslim ? getImuslimRuMap(bookId) : Promise.resolve(undefined),
     ])
     const arList = arabic.hadiths ?? []
-    const ruMap = await buildRuMap(
+    const enMap = textMapFromHadiths(english.hadiths ?? [])
+    const primary = await buildRuMap(
       arList,
       textMapFromHadiths(russian.hadiths ?? []),
-      textMapFromHadiths(english.hadiths ?? []),
+      enMap,
       imuslim,
-      translateBatch,
+      undefined,
     )
-    items = mapHadiths(bookId, arList, ruMap)
+    items = mapHadiths(bookId, arList, primary)
+    cacheSet(SECTION_NS, key, items)
+    options?.onPartial?.(items)
+
+    if (translateBatch) {
+      const ruMap = await buildRuMap(
+        arList,
+        primary,
+        enMap,
+        undefined,
+        translateBatch,
+      )
+      items = mapHadiths(bookId, arList, ruMap)
+    }
   } else if (lang === 'ru' && IMUSLIM_PRIMARY_RU.has(bookId)) {
     const [arabic, english, imuslim] = await Promise.all([
       fetchJson<SectionPayload>(arUrl),
@@ -265,14 +307,22 @@ export async function fetchHadithSection(
       getImuslimRuMap(bookId),
     ])
     const arList = arabic.hadiths ?? []
-    const ruMap = await buildRuMap(
-      arList,
-      imuslim,
-      textMapFromHadiths(english.hadiths ?? []),
-      undefined,
-      translateBatch,
-    )
-    items = mapHadiths(bookId, arList, ruMap)
+    const enMap = textMapFromHadiths(english.hadiths ?? [])
+    const primary = await buildRuMap(arList, imuslim, enMap, undefined, undefined)
+    items = mapHadiths(bookId, arList, primary)
+    cacheSet(SECTION_NS, key, items)
+    options?.onPartial?.(items)
+
+    if (translateBatch) {
+      const ruMap = await buildRuMap(
+        arList,
+        primary,
+        enMap,
+        undefined,
+        translateBatch,
+      )
+      items = mapHadiths(bookId, arList, ruMap)
+    }
   } else {
     const [arabic, translation] = await Promise.all([
       fetchJson<SectionPayload>(arUrl),
@@ -283,6 +333,7 @@ export async function fetchHadithSection(
       arabic.hadiths ?? [],
       textMapFromHadiths(translation.hadiths ?? []),
     )
+    options?.onPartial?.(items)
   }
 
   cacheSet(SECTION_NS, key, items)
@@ -317,8 +368,16 @@ export function prefetchNearbyHadithSections(
   if (idx < 0) return
   const prev = sectionIds[idx - 1]
   const next = sectionIds[idx + 1]
-  if (prev) warmCache(() => fetchHadithSection(bookId, prev, lang))
-  if (next) warmCache(() => fetchHadithSection(bookId, next, lang))
+  if (prev) {
+    warmCache(() =>
+      fetchHadithSection(bookId, prev, lang, { machineTranslate: false }),
+    )
+  }
+  if (next) {
+    warmCache(() =>
+      fetchHadithSection(bookId, next, lang, { machineTranslate: false }),
+    )
+  }
 }
 
 /** Seed caches for all collections on the hadith list page. */
@@ -349,7 +408,9 @@ export function prefetchHadithSection(
 ) {
   warmCache(async () => {
     await fetchHadithSections(bookId, lang)
-    await fetchHadithSection(bookId, sectionId, lang)
+    await fetchHadithSection(bookId, sectionId, lang, {
+      machineTranslate: false,
+    })
   })
 }
 
@@ -362,6 +423,8 @@ export function prefetchHadithBookSections(
 ) {
   warmImuslimRu(bookId)
   for (const id of sectionIds.slice(0, count)) {
-    warmCache(() => fetchHadithSection(bookId, id, lang))
+    warmCache(() =>
+      fetchHadithSection(bookId, id, lang, { machineTranslate: false }),
+    )
   }
 }

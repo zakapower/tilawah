@@ -212,6 +212,7 @@ export function HadithBookView({
             <li key={s.id} id={`hadith-section-${book.id}-${s.id}`}>
               <Link
                 href={`/hadith/${book.id}/${s.id}`}
+                prefetch={false}
                 onPointerEnter={() =>
                   prefetchHadithSection(book.id, s.id, lang)
                 }

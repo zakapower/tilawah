@@ -92,7 +92,7 @@ export function HadithSectionView({
   initialByLang?: Partial<
     Record<
       'ru' | 'en',
-      { sections: HadithSectionMeta[]; hadiths: HadithItem[]; title: string }
+      { sections: HadithSectionMeta[]; hadiths?: HadithItem[]; title: string }
     >
   >
 } = {}) {
@@ -105,15 +105,23 @@ export function HadithSectionView({
   const boot = () => {
     if (!book || !sectionId) return null
     const init = initialByLang?.[lang]
-    if (init) return init
-    const secs = peekHadithSections(book.id, lang)
-    const items = peekHadithSection(book.id, sectionId, lang)
+    const secs = init?.sections ?? peekHadithSections(book.id, lang)
+    const items =
+      init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
     if (secs && items) {
       const sec = secs.find((s) => s.id === sectionId)
       return {
         sections: secs,
         hadiths: items,
-        title: sec?.name ?? sectionId,
+        title: init?.title ?? sec?.name ?? sectionId,
+      }
+    }
+    if (secs) {
+      const sec = secs.find((s) => s.id === sectionId)
+      return {
+        sections: secs,
+        hadiths: null as HadithItem[] | null,
+        title: init?.title ?? sec?.name ?? sectionId,
       }
     }
     return null
@@ -161,7 +169,7 @@ export function HadithSectionView({
       const pack = initialByLang?.[l]
       if (!pack) continue
       seedHadithSections(book.id, l, pack.sections)
-      seedHadithSection(book.id, sectionId, l, pack.hadiths)
+      if (pack.hadiths) seedHadithSection(book.id, sectionId, l, pack.hadiths)
     }
   }, [book, sectionId, initialByLang])
 
@@ -177,32 +185,22 @@ export function HadithSectionView({
     const cachedSecs = init?.sections ?? peekHadithSections(book.id, lang)
     const cachedItems =
       init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
-    if (cachedSecs && cachedItems) {
-      const sec = cachedSecs.find((s) => s.id === sectionId)
-      setSections(cachedSecs)
-      setTitle(init?.title ?? sec?.name ?? sectionId)
-      setHadiths(cachedItems)
-      if (init) {
-        seedHadithSections(book.id, lang, init.sections)
-        seedHadithSection(book.id, sectionId, lang, init.hadiths)
-      }
-      prefetchNearbyHadithSections(
-        book.id,
-        sectionId,
-        lang,
-        cachedSecs.map((s) => s.id),
-      )
-      return
-    }
-
     if (cachedSecs) {
       const sec = cachedSecs.find((s) => s.id === sectionId)
       setSections(cachedSecs)
-      setTitle(sec?.name ?? sectionId)
+      setTitle(init?.title ?? sec?.name ?? sectionId)
+      if (init) seedHadithSections(book.id, lang, init.sections)
     } else {
       setSections(null)
     }
-    setHadiths(null)
+    if (cachedItems) {
+      setHadiths(cachedItems)
+      if (init?.hadiths) {
+        seedHadithSection(book.id, sectionId, lang, init.hadiths)
+      }
+    } else {
+      setHadiths(null)
+    }
 
     const loads: Promise<void>[] = []
 
@@ -218,7 +216,11 @@ export function HadithSectionView({
     }
 
     loads.push(
-      fetchHadithSection(book.id, sectionId, lang).then((items) => {
+      fetchHadithSection(book.id, sectionId, lang, {
+        onPartial: (items) => {
+          if (!cancelled) setHadiths(items)
+        },
+      }).then((items) => {
         if (cancelled) return
         setHadiths(items)
       }),
