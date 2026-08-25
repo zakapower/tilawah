@@ -2,7 +2,12 @@
 export function ruTranslationLooksComplete(text: string): boolean {
   const t = normalizeHadithText(text)
   if (!t) return false
-  return /[а-яё]/i.test(t)
+  if (!/[а-яё]/i.test(t)) return false
+  // Reject failed MT that left mostly-Latin text in the RU slot.
+  const cyr = (t.match(/[а-яё]/gi) || []).length
+  const lat = (t.match(/[a-z]/gi) || []).length
+  if (lat > 24 && lat > cyr * 2) return false
+  return true
 }
 
 /** Fix literal `\n` / `\r\n` from hadith CDN JSON into real newlines. */

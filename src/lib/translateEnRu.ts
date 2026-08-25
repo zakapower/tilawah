@@ -2,7 +2,6 @@
 
 const GTX =
   'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ru&dt=t&q='
-const MAX_Q = 1500
 const CONCURRENCY = 6
 
 const mem = new Map<string, string>()
@@ -12,7 +11,7 @@ function canUseStorage() {
 }
 
 function storeKey() {
-  return 'tilawah-tr-en-ru-v2'
+  return 'tilawah-tr-en-ru-v3'
 }
 
 function isValidRuTranslation(ru: string, source: string): boolean {
@@ -20,6 +19,9 @@ function isValidRuTranslation(ru: string, source: string): boolean {
   if (!t) return false
   if (!/[а-яё]/i.test(t)) return false
   if (t === source.trim()) return false
+  const cyr = (t.match(/[а-яё]/gi) || []).length
+  const lat = (t.match(/[a-z]/gi) || []).length
+  if (lat > 24 && lat > cyr * 2) return false
   return true
 }
 
@@ -86,20 +88,23 @@ function parseGtx(data: unknown): string {
 
 async function gtxTranslateChunk(text: string): Promise<string> {
   const url = GTX + encodeURIComponent(text)
-  const res = await fetch(url, { cache: 'force-cache' })
+  // Never force-cache translate responses — failures/empty bodies would stick.
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error('translate failed: ' + res.status)
   return parseGtx(await res.json())
 }
 
 function chunkText(text: string): string[] {
-  if (text.length <= MAX_Q) return [text]
+  // Keep encoded URL length safe for GTX GET (~2–8KB practical limits).
+  const max = 900
+  if (text.length <= max) return [text]
   const parts: string[] = []
   let rest = text
-  while (rest.length > MAX_Q) {
-    let cut = rest.lastIndexOf('\n', MAX_Q)
-    if (cut < MAX_Q * 0.4) cut = rest.lastIndexOf('. ', MAX_Q)
-    if (cut < MAX_Q * 0.4) cut = rest.lastIndexOf(' ', MAX_Q)
-    if (cut < MAX_Q * 0.4) cut = MAX_Q
+  while (rest.length > max) {
+    let cut = rest.lastIndexOf('\n', max)
+    if (cut < max * 0.4) cut = rest.lastIndexOf('. ', max)
+    if (cut < max * 0.4) cut = rest.lastIndexOf(' ', max)
+    if (cut < max * 0.4) cut = max
     parts.push(rest.slice(0, cut).trim())
     rest = rest.slice(cut).trim()
   }
@@ -166,8 +171,19 @@ export async function translateEnToRuMany(texts: string[]): Promise<string[]> {
   if (typeof window !== 'undefined') {
     try {
       translated = []
-      for (let i = 0; i < missingTexts.length; i += 40) {
-        const part = await translateViaApi(missingTexts.slice(i, i + 40))
+      // Match server limits: 40 items / ~12k chars (leave headroom).
+      let i = 0
+      while (i < missingTexts.length) {
+        const batch: string[] = []
+        let chars = 0
+        while (i < missingTexts.length && batch.length < 24) {
+          const t = missingTexts[i]
+          if (batch.length > 0 && chars + t.length > 10000) break
+          batch.push(t)
+          chars += t.length
+          i++
+        }
+        const part = await translateViaApi(batch)
         translated.push(...part)
       }
     } catch {

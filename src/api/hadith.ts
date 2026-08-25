@@ -35,8 +35,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 /** Cache label — bump when RU source strategy changes. */
 function translationLabel(col: HadithCollectionMeta, lang: Lang) {
   if (lang !== 'ru') return col.editions.en
-  if (col.editions.ru) return `${col.editions.ru}+enmt1`
-  return 'enmt1'
+  if (col.editions.ru) return `${col.editions.ru}+enmt4`
+  return 'enmt4'
 }
 
 function sectionsKey(bookId: string, lang: Lang) {
@@ -58,6 +58,7 @@ async function buildRuMap(
   primary: Map<number, string>,
   enMap: Map<number, string>,
   translateBatch?: (texts: string[]) => Promise<string[]>,
+  onProgress?: (map: Map<number, string>) => void,
 ): Promise<Map<number, string>> {
   const result = new Map<number, string>()
   for (const h of arabic) {
@@ -76,14 +77,38 @@ async function buildRuMap(
   }
   if (missing.length === 0) return result
 
-  const BATCH = 40
-  for (let i = 0; i < missing.length; i += BATCH) {
-    const chunk = missing.slice(i, i + BATCH)
-    const translated = await translateBatch(chunk.map((c) => c.en))
+  // Keep batches under the translate API char limit (~12k) and item cap.
+  const MAX_ITEMS = 24
+  const MAX_CHARS = 10000
+  let i = 0
+  while (i < missing.length) {
+    const chunk: Array<{ n: number; en: string }> = []
+    let chars = 0
+    while (i < missing.length && chunk.length < MAX_ITEMS) {
+      const next = missing[i]
+      if (chunk.length > 0 && chars + next.en.length > MAX_CHARS) break
+      chunk.push(next)
+      chars += next.en.length
+      i++
+    }
+    let translated = await translateBatch(chunk.map((c) => c.en))
+    // One retry for empty / non-RU slots (transient API / gtx failures).
+    const retryIdx: number[] = []
     for (let j = 0; j < chunk.length; j++) {
       const ru = normalizeHadithText(translated[j] || '')
-      if (ru) result.set(chunk[j].n, ru)
+      if (!ru || !ruTranslationLooksComplete(ru)) retryIdx.push(j)
     }
+    if (retryIdx.length > 0) {
+      const retried = await translateBatch(retryIdx.map((j) => chunk[j].en))
+      for (let k = 0; k < retryIdx.length; k++) {
+        translated[retryIdx[k]] = retried[k] || translated[retryIdx[k]] || ''
+      }
+    }
+    for (let j = 0; j < chunk.length; j++) {
+      const ru = normalizeHadithText(translated[j] || '')
+      if (ru && ruTranslationLooksComplete(ru)) result.set(chunk[j].n, ru)
+    }
+    onProgress?.(new Map(result))
   }
   return result
 }
@@ -95,6 +120,24 @@ function textMapFromHadiths(hadiths: ApiHadith[]): Map<number, string> {
     if (text) map.set(h.hadithnumber, text)
   }
   return map
+}
+
+/** Expand CDN stubs like "Narrated Anas: as above" using the previous real text. */
+function resolveEnStubs(enMap: Map<number, string>, order: number[]): Map<number, string> {
+  const out = new Map(enMap)
+  const stubRe =
+    /^(?:narrated\s+[\s\S]{0,80}?:?\s*)?(?:as above|the same hadith|the above hadith|mentioned above)\.?$/i
+  let lastFull = ''
+  for (const n of order) {
+    const raw = (out.get(n) || '').trim()
+    if (!raw) continue
+    if (stubRe.test(raw) || (/\bas above\b/i.test(raw) && raw.length < 80)) {
+      if (lastFull) out.set(n, lastFull)
+      continue
+    }
+    lastFull = raw
+  }
+  return out
 }
 
 export function peekHadithSections(
@@ -191,20 +234,53 @@ function shouldPersistSection(
   return !sectionNeedsRuBackfill(items)
 }
 
+/** Keep any already-translated lines when a slower shell fetch finishes later. */
+function mergeRuPreferComplete(
+  incoming: HadithItem[],
+  existing: HadithItem[] | null,
+): HadithItem[] {
+  if (!existing?.length) return incoming
+  const prevByNumber = new Map(existing.map((h) => [h.number, h]))
+  return incoming.map((h) => {
+    if (ruTranslationLooksComplete(h.text)) return h
+    const prev = prevByNumber.get(h.number)
+    if (prev && ruTranslationLooksComplete(prev.text)) {
+      return { ...h, text: prev.text }
+    }
+    return h
+  })
+}
+
 function storeSectionItems(
   key: string,
   items: HadithItem[],
   lang: Lang,
   machineTranslate: boolean,
 ) {
-  cacheSet(SECTION_NS, key, items, {
-    persist: shouldPersistSection(lang, items, machineTranslate),
+  const existing = cacheGet<HadithItem[]>(SECTION_NS, key)
+  let next = items
+  if (lang === 'ru') {
+    next = mergeRuPreferComplete(items, existing)
+    // Never let a fast shell / partial overwrite a finished RU section.
+    if (
+      existing &&
+      !sectionNeedsRuBackfill(existing) &&
+      sectionNeedsRuBackfill(next)
+    ) {
+      return
+    }
+  }
+  cacheSet(SECTION_NS, key, next, {
+    persist: shouldPersistSection(lang, next, machineTranslate),
   })
 }
 
 export function hadithSectionNeedsRuBackfill(items: HadithItem[]) {
   return sectionNeedsRuBackfill(items)
 }
+
+/** Dedupe concurrent section loads (shell vs full MT must not clobber each other). */
+const sectionInflight = new Map<string, Promise<HadithItem[]>>()
 
 export async function fetchHadithSection(
   bookId: string,
@@ -235,6 +311,67 @@ export async function fetchHadithSection(
     // Fall through: refresh from sources and fill RU gaps with MT.
   }
 
+  const inflightKey = `${key}|mt:${translateBatch ? 1 : 0}`
+  const pending = sectionInflight.get(inflightKey)
+  if (pending) {
+    const items = await pending
+    options?.onPartial?.(items)
+    return items
+  }
+
+  // If a full RU fill is already running, reuse it even for shell requests.
+  if (!translateBatch && lang === 'ru') {
+    const fullPending = sectionInflight.get(`${key}|mt:1`)
+    if (fullPending) {
+      const items = await fullPending
+      options?.onPartial?.(items)
+      return items
+    }
+  }
+
+  // Wait for an in-flight shell before starting MT, then reuse its cache.
+  if (translateBatch && lang === 'ru') {
+    const shellPending = sectionInflight.get(`${key}|mt:0`)
+    if (shellPending) {
+      await shellPending
+      const afterShell = peekHadithSection(bookId, sectionId, lang)
+      if (afterShell) {
+        options?.onPartial?.(afterShell)
+        if (!sectionNeedsRuBackfill(afterShell)) return afterShell
+      }
+    }
+  }
+
+  const loadPromise = loadHadithSectionItems(
+    bookId,
+    sectionId,
+    lang,
+    col,
+    key,
+    machineTranslate,
+    translateBatch,
+    options?.onPartial,
+  )
+  sectionInflight.set(inflightKey, loadPromise)
+  try {
+    return await loadPromise
+  } finally {
+    if (sectionInflight.get(inflightKey) === loadPromise) {
+      sectionInflight.delete(inflightKey)
+    }
+  }
+}
+
+async function loadHadithSectionItems(
+  bookId: string,
+  sectionId: string,
+  lang: Lang,
+  col: HadithCollectionMeta,
+  key: string,
+  machineTranslate: boolean,
+  translateBatch: ((texts: string[]) => Promise<string[]>) | undefined,
+  onPartial?: (items: HadithItem[]) => void,
+): Promise<HadithItem[]> {
   const arUrl = `${CDN}/editions/${col.editions.ar}/sections/${sectionId}.min.json`
   const enUrl = `${CDN}/editions/${col.editions.en}/sections/${sectionId}.min.json`
 
@@ -256,16 +393,35 @@ export async function fetchHadithSection(
     ]
     const [arabic, english, russian] = await Promise.all(fetches)
     const arList = arabic.hadiths ?? []
-    const enMap = textMapFromHadiths(english.hadiths ?? [])
+    const enRaw = textMapFromHadiths(english.hadiths ?? [])
+    const enMap = resolveEnStubs(
+      enRaw,
+      arList.map((h) => h.hadithnumber),
+    )
     const cdnRu = textMapFromHadiths(russian?.hadiths ?? [])
     const primary = await buildRuMap(arList, cdnRu, enMap, undefined)
     items = mapHadiths(bookId, arList, primary)
     storeSectionItems(key, items, lang, machineTranslate)
-    options?.onPartial?.(items)
+    onPartial?.(peekHadithSection(bookId, sectionId, lang) ?? items)
 
     if (translateBatch) {
-      const ruMap = await buildRuMap(arList, primary, enMap, translateBatch)
+      const ruMap = await buildRuMap(
+        arList,
+        primary,
+        enMap,
+        translateBatch,
+        (partial) => {
+          const partialItems = mapHadiths(bookId, arList, partial)
+          storeSectionItems(key, partialItems, lang, true)
+          onPartial?.(peekHadithSection(bookId, sectionId, lang) ?? partialItems)
+        },
+      )
       items = mapHadiths(bookId, arList, ruMap)
+      // Second pass for anything still empty after transient failures.
+      if ([...arList].some((h) => !ruTranslationLooksComplete(ruMap.get(h.hadithnumber) || ''))) {
+        const again = await buildRuMap(arList, ruMap, enMap, translateBatch)
+        items = mapHadiths(bookId, arList, again)
+      }
     }
   } else {
     const [arabic, translation] = await Promise.all([
@@ -277,11 +433,11 @@ export async function fetchHadithSection(
       arabic.hadiths ?? [],
       textMapFromHadiths(translation.hadiths ?? []),
     )
-    options?.onPartial?.(items)
+    onPartial?.(items)
   }
 
   storeSectionItems(key, items, lang, machineTranslate)
-  return items
+  return peekHadithSection(bookId, sectionId, lang) ?? items
 }
 
 export function seedHadithSections(
@@ -298,18 +454,17 @@ export function seedHadithSection(
   lang: Lang,
   items: HadithItem[],
 ) {
-  cacheSet(SECTION_NS, sectionItemsKey(bookId, sectionId, lang), items)
+  const key = sectionItemsKey(bookId, sectionId, lang)
+  // Merge through store guard so SSG/shell seeds cannot wipe filled RU.
+  storeSectionItems(key, items, lang, lang === 'ru' ? false : true)
 }
 
 /** Warm both language caches for a chapter (for lang tab switching). */
 export function warmHadithSectionBothLangs(bookId: string, sectionId: string) {
-  // Fast shells first, then RU MT fill so the chapter paints sooner.
   warmCache(() =>
     fetchHadithSection(bookId, sectionId, 'en', { machineTranslate: false }),
   )
-  warmCache(() =>
-    fetchHadithSection(bookId, sectionId, 'ru', { machineTranslate: false }),
-  )
+  // One RU load with MT — avoid a parallel shell that can race and wipe fills.
   warmCache(() => fetchHadithSection(bookId, sectionId, 'ru'))
 }
 
@@ -326,7 +481,10 @@ export function prefetchNearbyHadithSections(
   const other: Lang = lang === 'ru' ? 'en' : 'ru'
   for (const id of nearby) {
     warmCache(() =>
-      fetchHadithSection(bookId, id, lang, { machineTranslate: false }),
+      fetchHadithSection(bookId, id, lang, {
+        // Fill RU gaps while idle so next chapter is not Arabic-only.
+        machineTranslate: lang === 'ru',
+      }),
     )
     warmCache(() =>
       fetchHadithSection(bookId, id, other, { machineTranslate: false }),
@@ -357,8 +515,9 @@ export function prefetchHadithSection(
 ) {
   warmCache(async () => {
     await fetchHadithSections(bookId, lang)
+    // For RU, prefetch with MT so gaps (e.g. Abu Dawud 11) are filled before open.
     await fetchHadithSection(bookId, sectionId, lang, {
-      machineTranslate: false,
+      machineTranslate: lang === 'ru',
     })
   })
   const other: Lang = lang === 'ru' ? 'en' : 'ru'
@@ -379,15 +538,17 @@ export function prefetchHadithBookSections(
 ) {
   const other: Lang = lang === 'ru' ? 'en' : 'ru'
   for (const [i, id] of sectionIds.slice(0, count).entries()) {
+    if (i === 0) {
+      // First chapter: full RU fill; skip competing shell for the same id.
+      warmCache(() => fetchHadithSection(bookId, id, 'en', { machineTranslate: false }))
+      warmCache(() => fetchHadithSection(bookId, id, 'ru'))
+      continue
+    }
     warmCache(() =>
       fetchHadithSection(bookId, id, lang, { machineTranslate: false }),
     )
     warmCache(() =>
       fetchHadithSection(bookId, id, other, { machineTranslate: false }),
     )
-    // First chapter: finish RU MT in the background for a warm open.
-    if (i === 0) {
-      warmCache(() => fetchHadithSection(bookId, id, 'ru'))
-    }
   }
 }

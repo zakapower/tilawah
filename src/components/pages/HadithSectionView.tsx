@@ -357,7 +357,9 @@ export function HadithSectionView({
                   id={h.id}
                 >
                   <div className="ayah__top">
-                    <p className="ayah__n">{h.number}</p>
+                    <p className="ayah__n">
+                      {Number.isInteger(h.number) ? h.number : String(h.number)}
+                    </p>
                     <div className="ayah__actions">
                       <FavoriteButton
                         kind="hadith"

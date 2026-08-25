@@ -64,7 +64,18 @@ export async function translateEnToRuManyForBuild(
   const translated = await translateEnToRuManyDirect(missingTexts)
   for (let j = 0; j < missingIdx.length; j++) {
     const i = missingIdx[j]
-    const ru = translated[j] || texts[i]
+    const ru = (translated[j] || '').trim()
+    // Never persist English fallbacks as Russian.
+    if (!ru || !/[а-яё]/i.test(ru)) {
+      out[i] = ''
+      continue
+    }
+    const cyr = (ru.match(/[а-яё]/gi) || []).length
+    const lat = (ru.match(/[a-z]/gi) || []).length
+    if (lat > 24 && lat > cyr * 2) {
+      out[i] = ''
+      continue
+    }
     out[i] = ru
     disk[hashText(texts[i])] = ru
     dirty = true
