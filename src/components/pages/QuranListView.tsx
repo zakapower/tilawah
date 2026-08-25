@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { SurahMeta } from '@/data/types'
+import { prefetchSurah, warmQuranList } from '@/api/quran'
 import { surahMeaningRu, surahTitleRu } from '@/data/surahNamesRu'
 import {
   ayahRefPath,
@@ -21,6 +22,10 @@ export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
   const [query, setQuery] = useState('')
 
   useRestoreListScroll('/quran', !query.trim())
+
+  useEffect(() => {
+    warmQuranList(lang, 4)
+  }, [lang])
 
   const ayahRef = useMemo(() => parseAyahRef(query), [query])
 
@@ -138,6 +143,7 @@ export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
             <li key={s.number} id={`surah-${s.number}`}>
               <Link
                 href={`/quran/${s.number}`}
+                onPointerEnter={() => prefetchSurah(s.number, lang)}
                 onClick={() => {
                   saveListScroll('/quran')
                   saveLastSurah(s.number)

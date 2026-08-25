@@ -2,18 +2,22 @@
 
 import { useEffect, useId, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { SiGithub } from '@icons-pack/react-simple-icons'
 import { BookOpen, Bookmark, Menu, Moon, Sun, X } from 'lucide-react'
+import { warmHadithCatalog } from '@/api/hadith'
 import { useApp } from '../context/AppContext'
 import { SettingsPopover } from './SettingsPopover'
 import './Header.css'
 
 const GITHUB_URL = 'https://github.com/zakapower'
 
+const MAIN_ROUTES = ['/', '/quran', '/hadith', '/about', '/favorites'] as const
+
 export function Header() {
   const { lang, theme, themeReady, toggleLang, toggleTheme, t } = useApp()
   const pathname = usePathname()
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuId = useId()
 
@@ -44,6 +48,44 @@ export function Header() {
     }
   }, [menuOpen])
 
+  // Prefetch main tabs + warm hadith catalog while the browser is idle.
+  useEffect(() => {
+    let cancelled = false
+    const warm = () => {
+      if (cancelled) return
+      for (const href of MAIN_ROUTES) router.prefetch(href)
+      warmHadithCatalog()
+    }
+    const ric = (
+      window as Window & {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number
+        cancelIdleCallback?: (id: number) => void
+      }
+    ).requestIdleCallback
+    const cic = (
+      window as Window & { cancelIdleCallback?: (id: number) => void }
+    ).cancelIdleCallback
+    let idleId: number | undefined
+    let timeoutId: number | undefined
+    if (typeof ric === 'function') {
+      idleId = ric(warm, { timeout: 2000 })
+    } else {
+      timeoutId = window.setTimeout(warm, 200)
+    }
+    return () => {
+      cancelled = true
+      if (idleId != null && typeof cic === 'function') cic(idleId)
+      if (timeoutId != null) window.clearTimeout(timeoutId)
+    }
+  }, [router])
+
+  function prefetchRoute(href: string) {
+    router.prefetch(href)
+  }
+
   const toolControls = (
     <>
       <Link
@@ -51,6 +93,7 @@ export function Header() {
         className={`ctrl${favoritesActive ? ' ctrl--active' : ''}`}
         aria-label={t('Избранное', 'Favorites')}
         title={t('Избранное', 'Favorites')}
+        onPointerEnter={() => prefetchRoute('/favorites')}
         onClick={() => setMenuOpen(false)}
       >
         <Bookmark className="ctrl__icon" strokeWidth={2} aria-hidden />
@@ -110,16 +153,32 @@ export function Header() {
           </Link>
 
           <nav className="site-nav" aria-label={t('Меню', 'Menu')} spellCheck={false}>
-            <Link href="/" className={navClass('/', true)}>
+            <Link
+              href="/"
+              className={navClass('/', true)}
+              onPointerEnter={() => prefetchRoute('/')}
+            >
               {t('Главная', 'Home')}
             </Link>
-            <Link href="/quran" className={navClass('/quran')}>
+            <Link
+              href="/quran"
+              className={navClass('/quran')}
+              onPointerEnter={() => prefetchRoute('/quran')}
+            >
               {t('Коран', 'Qur’an')}
             </Link>
-            <Link href="/hadith" className={navClass('/hadith')}>
+            <Link
+              href="/hadith"
+              className={navClass('/hadith')}
+              onPointerEnter={() => prefetchRoute('/hadith')}
+            >
               {t('Хадисы', 'Hadith')}
             </Link>
-            <Link href="/about" className={navClass('/about')}>
+            <Link
+              href="/about"
+              className={navClass('/about')}
+              onPointerEnter={() => prefetchRoute('/about')}
+            >
               {t('О проекте', 'About')}
             </Link>
           </nav>

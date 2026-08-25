@@ -89,6 +89,34 @@ function writeLangCookie(lang: Lang) {
   document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`
 }
 
+function scheduleRouterRefresh(router: { refresh: () => void }) {
+  const run = () => {
+    try {
+      router.refresh()
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof window === 'undefined') {
+    run()
+    return
+  }
+  // Let the client lang switch paint first; sync RSC when idle.
+  const ric = (
+    window as Window & {
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number },
+      ) => number
+    }
+  ).requestIdleCallback
+  if (typeof ric === 'function') {
+    ric(run, { timeout: 1200 })
+  } else {
+    window.setTimeout(run, 80)
+  }
+}
+
 export function AppProvider({
   children,
   initialLang,
@@ -169,7 +197,7 @@ export function AppProvider({
       setLang: (next) => {
         writeLangCookie(next)
         setLangState(next)
-        router.refresh()
+        scheduleRouterRefresh(router)
       },
       setFontAr: (n) => setFontArState(clampScale(n)),
       setFontTr: (n) => setFontTrState(clampScale(n)),
@@ -182,7 +210,7 @@ export function AppProvider({
         const next: Lang = lang === 'ru' ? 'en' : 'ru'
         writeLangCookie(next)
         setLangState(next)
-        router.refresh()
+        scheduleRouterRefresh(router)
       },
       toggleTheme: () => {
         document.documentElement.classList.add('theme-changing')

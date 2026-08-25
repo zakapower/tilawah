@@ -108,9 +108,7 @@ export function HadithSectionView({
     const secs = init?.sections ?? peekHadithSections(book.id, lang)
     const items =
       init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
-    const ruNeedsBackfill =
-      lang === 'ru' && Boolean(items && hadithSectionNeedsRuBackfill(items))
-    if (secs && items && !ruNeedsBackfill) {
+    if (secs && items) {
       const sec = secs.find((s) => s.id === sectionId)
       return {
         sections: secs,
@@ -214,6 +212,7 @@ export function HadithSectionView({
       }
     }
 
+    // Show whatever we have immediately (incl. incomplete RU) while backfill runs.
     if (cachedSecs) {
       const sec = cachedSecs.find((s) => s.id === sectionId)
       setSections(cachedSecs)
@@ -222,7 +221,7 @@ export function HadithSectionView({
     } else {
       setSections(null)
     }
-    if (cachedItems && !ruNeedsBackfill) {
+    if (cachedItems) {
       setHadiths(cachedItems)
       if (init?.hadiths) {
         seedHadithSection(book.id, sectionId, lang, init.hadiths)

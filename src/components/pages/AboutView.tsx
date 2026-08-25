@@ -103,8 +103,8 @@ export function AboutView() {
           <h2>{t('Источники', 'Sources')}</h2>
           <p>
             {t(
-              'Тексты Корана и хадисов - из открытых quran-api, hadith-api (jsDelivr) и i-muslim. Озвучка и тайминги слов - из API Quran.com.',
-              'Qur’an and Hadith texts come from the open quran-api, hadith-api (jsDelivr), and i-muslim. Audio and word timings come from the Quran.com API.',
+              'Тексты Корана и хадисов - из открытых quran-api и hadith-api (jsDelivr). Озвучка и тайминги слов - из API Quran.com.',
+              'Qur’an and Hadith texts come from the open quran-api and hadith-api (jsDelivr). Audio and word timings come from the Quran.com API.',
             )}
           </p>
           <ul>
@@ -173,14 +173,14 @@ export function AboutView() {
                 isnad.link
               </a>
               {t(
-                ' (автор в источнике не указан); EN: hadith-api (автор не указан).',
-                ' edition (author not listed upstream); EN: hadith-api (author not listed).',
+                ' (автор в источнике не указан); EN: hadith-api (автор не указан). Пропуски в RU заполняются автопереводом с английского.',
+                ' edition (author not listed upstream); EN: hadith-api (author not listed). Missing RU lines are filled by auto-translation from English.',
               )}
             </li>
             <li>
               {t(
-                'Сунан ат-Тирмизи, Сунан ан-Насаи, Сунан ибн Маджа - RU: i-muslim (CC0); EN: hadith-api. Пропуски в RU при необходимости дополняются автопереводом с английского.',
-                'Sunan at-Tirmidhi, Sunan an-Nasa’i, Sunan Ibn Majah - RU: i-muslim (CC0); EN: hadith-api. Missing RU lines may be filled by auto-translation from English.',
+                'Сунан ат-Тирмизи, Сунан ан-Насаи, Сунан ибн Маджа и пропуски в других сборниках - RU: автоперевод с английского издания hadith-api; EN: hadith-api.',
+                'Sunan at-Tirmidhi, Sunan an-Nasa’i, Sunan Ibn Majah, and gaps in other collections - RU: auto-translation from the English hadith-api edition; EN: hadith-api.',
               )}
             </li>
           </ul>

@@ -83,8 +83,36 @@ export function seedSurah(content: SurahContent, lang: 'ru' | 'en') {
   cacheSet(CACHE_NS, cacheKey(content.number, lang), content)
 }
 
-/** Prefetch neighbors so next/prev surah opens instantly. */
+/** Prefetch neighbors so next/prev surah opens instantly (both langs). */
 export function prefetchNearbySurahs(number: number, lang: 'ru' | 'en') {
-  if (number > 1) warmCache(() => fetchSurah(number - 1, lang))
-  if (number < 114) warmCache(() => fetchSurah(number + 1, lang))
+  const other: 'ru' | 'en' = lang === 'ru' ? 'en' : 'ru'
+  for (const n of [number - 1, number + 1]) {
+    if (n < 1 || n > 114) continue
+    warmCache(() => fetchSurah(n, lang))
+    warmCache(() => fetchSurah(n, other))
+  }
+}
+
+/** Warm current surah in both languages for instant RU/EN switch. */
+export function warmSurahBothLangs(number: number) {
+  if (number < 1 || number > 114) return
+  warmCache(() => fetchSurah(number, 'en'))
+  warmCache(() => fetchSurah(number, 'ru'))
+}
+
+/** Prefetch a surah on hover (both langs). */
+export function prefetchSurah(number: number, lang: 'ru' | 'en') {
+  if (number < 1 || number > 114) return
+  const other: 'ru' | 'en' = lang === 'ru' ? 'en' : 'ru'
+  warmCache(() => fetchSurah(number, lang))
+  warmCache(() => fetchSurah(number, other))
+}
+
+/** Idle-warm first surahs from the list page. */
+export function warmQuranList(lang: 'ru' | 'en', count = 4) {
+  const other: 'ru' | 'en' = lang === 'ru' ? 'en' : 'ru'
+  for (let n = 1; n <= count; n++) {
+    warmCache(() => fetchSurah(n, lang))
+    warmCache(() => fetchSurah(n, other))
+  }
 }

@@ -3,7 +3,7 @@
 const GTX =
   'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ru&dt=t&q='
 const MAX_Q = 1500
-const CONCURRENCY = 4
+const CONCURRENCY = 6
 
 const mem = new Map<string, string>()
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
-import { fetchSurah, peekSurah, prefetchNearbySurahs, seedSurah } from '@/api/quran'
+import { fetchSurah, peekSurah, prefetchNearbySurahs, seedSurah, warmSurahBothLangs } from '@/api/quran'
 import type { SurahContent } from '@/data/types'
 import { surahMeaningRu, surahTitleRu } from '@/data/surahNamesRu'
 import { parseAyahParam } from '@/utils/ayahRef'
@@ -146,7 +146,8 @@ export function SurahView({
   useEffect(() => {
     if (initialByLang?.ru) seedSurah(initialByLang.ru, 'ru')
     if (initialByLang?.en) seedSurah(initialByLang.en, 'en')
-  }, [initialByLang])
+    if (Number.isFinite(n) && n >= 1 && n <= 114) warmSurahBothLangs(n)
+  }, [initialByLang, n])
 
   const readerPath =
     Number.isFinite(n) && n >= 1 && n <= 114 ? `/quran/${n}` : null

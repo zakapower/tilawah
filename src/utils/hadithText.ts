@@ -30,6 +30,7 @@ function looksLikeIsnadLead(lead: string): boolean {
   if (/[«"“]/.test(t)) return false
   return (
     /^(it was )?narrated(?:\s|:|$)/i.test(t) ||
+    /^(it (?:is|was) )?(?:narrated|reported)(?:\s|:|$)/i.test(t) ||
     /^reported(?:\s|:|$)/i.test(t) ||
     /^нам\s+(?:рассказал|сообщил)/i.test(t) ||
     /^сообщается/i.test(t) ||
@@ -40,8 +41,13 @@ function looksLikeIsnadLead(lead: string): boolean {
     /^рассказали/i.test(t) ||
     /^сообщил/i.test(t) ||
     /^передается/i.test(t) ||
+    /^передано/i.test(t) ||
+    /^повествуется/i.test(t) ||
+    /^рассказано/i.test(t) ||
+    /^было\s+передано/i.test(t) ||
     /^от\s+/i.test(t) ||
     /narrat/i.test(t) ||
+    /\breported\b/i.test(t) ||
     new RegExp(`${RU_SPEECH}\\s*:?\\s*$`, 'i').test(t) ||
     /о том, что\s*$/i.test(t) ||
     /\b(said|asked|reported|narrated)\s*:?\s*$/i.test(t)
@@ -51,7 +57,7 @@ function looksLikeIsnadLead(lead: string): boolean {
 /** Body still continuing the chain, not the matn yet. */
 function bodyLooksLikeContinuedIsnad(body: string): boolean {
   const b = body.trim()
-  return /^(?:передал(?:а|и)?\s+нам|рассказал(?:а|и)?\s+нам|сообщил(?:а|и)?\s+нам|передают\s+|рассказал(?:а|и)?\s+нам|от\s+[\p{L}'’‘\-])/iu.test(
+  return /^(?:передал(?:а|и)?\s+нам|рассказал(?:а|и)?\s+нам|сообщил(?:а|и)?\s+нам|передают\s+|от\s+[\p{L}'’‘\-]|it (?:is|was) (?:narrated|reported)|narrated\s)/iu.test(
     b,
   )
 }
@@ -88,17 +94,28 @@ function splitAtFirstColon(text: string): { lead: string; body: string } | null 
     return splitAt(lead, body)
   }
 
-  if (/^(it was )?narrated(?:\s|:|$)/i.test(lead) || /^reported(?:\s|:|$)/i.test(lead)) {
+  if (
+    /^(it was )?narrated(?:\s|:|$)/i.test(lead) ||
+    /^(it (?:is|was) )?(?:narrated|reported)/i.test(lead) ||
+    /^reported(?:\s|:|$)/i.test(lead) ||
+    /\bnarrated\b/i.test(lead) ||
+    /\breported\b/i.test(lead)
+  ) {
     return splitAt(lead, body)
   }
 
-  // Short openers without a colon inside the lead: "Передают со слов X:"
+  // Short RU openers / MT openers
   if (
-    /^(?:передают\s+со\s+слов|сообщается,\s*что|сообщается\s+от)/i.test(
+    /^(?:передают\s+со\s+слов|сообщается,\s*что|сообщается\s+от|передано\s+от|передается\s+от|повествуется\s+от|рассказано\s+от|было\s+передано\s+от)/i.test(
       lead,
     ) &&
     !lead.slice(20).includes(':')
   ) {
+    return splitAt(lead, body)
+  }
+
+  // "Имя сказал:" / "Name said:"
+  if (new RegExp(`${RU_SPEECH}\\s*$`, 'i').test(lead) || /\b(?:said|asked)\s*$/i.test(lead)) {
     return splitAt(lead, body)
   }
 
@@ -107,7 +124,7 @@ function splitAtFirstColon(text: string): { lead: string; body: string } | null 
 
 /**
  * First "сказал/сообщил…: «…" inside the opening window.
- * Avoids late dialogue quotes deep in the matn (hadith 2488-style bug).
+ * Avoids late dialogue quotes deep in the matn.
  */
 function splitAtFirstSpeechQuote(
   text: string,
@@ -166,6 +183,46 @@ function splitAtRuOtomChto(text: string): { lead: string; body: string } | null 
   return splitAt(lead, body)
 }
 
+/** EN: "It was narrated from X that …" / "on the authority of X that …" */
+function splitAtEnThat(text: string): { lead: string; body: string } | null {
+  const patterns = [
+    /^((?:it (?:is|was) )?(?:narrated|reported) on the authority of[\s\S]{3,200}?)\s+that\s+/i,
+    /^((?:it was )?narrated from[\s\S]{3,200}?)\s+that\s+/i,
+    /^((?:it was )?narrated that[\s\S]{3,160}?)\s+(?=["“«—–])/i,
+    /^((?:it was )?narrated[\s\S]{8,220}?)\s+that\s+/i,
+  ]
+  for (const re of patterns) {
+    const m = text.match(re)
+    if (!m) continue
+    const lead = m[1]
+    const body = text.slice(m[0].length).trim()
+    const hit = splitAt(lead, body)
+    if (hit) return hit
+  }
+  return null
+}
+
+/** EN: "Abu Hurairah narrated that …" / "Anas said: …" */
+function splitAtNameNarrated(text: string): { lead: string; body: string } | null {
+  const narratedThat = text.match(
+    /^([\p{L}][\p{L}\d\s.'’‘\-]{2,100}?)\s+narrated\s+that\s+([\s\S]+)$/iu,
+  )
+  if (narratedThat) {
+    const hit = splitAt(`${narratedThat[1]} narrated that`, narratedThat[2])
+    if (hit) return hit
+  }
+
+  const reported = text.match(
+    /^([\p{L}][\p{L}\d\s.'’‘\-]{2,100}?)\s+reported\s*:?\s+([\s\S]+)$/iu,
+  )
+  if (reported) {
+    const hit = splitAt(`${reported[1]} reported`, reported[2])
+    if (hit) return hit
+  }
+
+  return null
+}
+
 /** Split isnad opener ("Narrated…" / "Сообщается…") from the hadith matn. */
 export function splitHadithLead(
   text: string,
@@ -173,7 +230,7 @@ export function splitHadithLead(
   const cleaned = normalizeHadithText(text)
   if (!cleaned) return null
 
-  // 1) First colon — the usual boundary ("Передают со слов X: «…»").
+  // 1) First colon — the usual boundary ("Narrated X: …" / "Передают со слов X: «…»").
   const colonSplit = splitAtFirstColon(cleaned)
   if (colonSplit) return colonSplit
 
@@ -185,7 +242,15 @@ export function splitHadithLead(
   const chainSaid = splitAtChainSaid(cleaned)
   if (chainSaid) return chainSaid
 
-  // 4) "Сообщается/Передают со слов …, что матн" — only before any colon.
+  // 4) EN "… that matn" / "on the authority of … that"
+  const enThat = splitAtEnThat(cleaned)
+  if (enThat) return enThat
+
+  // 5) EN "Name narrated that …"
+  const nameNar = splitAtNameNarrated(cleaned)
+  if (nameNar) return nameNar
+
+  // 6) "Сообщается/Передают со слов …, что матн" — only before any colon.
   const soSlov = cleaned.match(
     /^((?:сообщается|передают)\s+со\s+слов[^:]{3,400}?,\s*что)\s*([\s\S].+)$/iu,
   )
@@ -194,25 +259,17 @@ export function splitHadithLead(
     if (hit) return hit
   }
 
-  // 5) Long isnad: "…, о том, что матн"
+  // 7) Long isnad: "…, о том, что матн"
   const otom = splitAtRuOtomChto(cleaned)
   if (otom) return otom
 
-  // 6) "Сообщается от X, что матн" — only before any colon.
+  // 8) "Сообщается от X, что матн" / MT: "Передано от X, что"
   const ruThat = cleaned.match(
-    /^(сообщается\s+от[^:]{3,280}?,\s*что)\s*([\s\S].+)$/iu,
+    /^((?:сообщается|передано|передается|повествуется|рассказано|было\s+передано)\s+от[^:]{3,280}?,\s*что)\s*([\s\S].+)$/iu,
   )
   if (ruThat && ruThat[2].trim().length > 8) {
     const hit = splitAt(ruThat[1], ruThat[2])
     if (hit) return hit
-  }
-
-  // 7) EN: "It was narrated from … that matn"
-  const enThat = cleaned.match(
-    /^((?:it was )?narrated[\s\S]{8,220}?)\s+that\s+([\s\S].+)$/i,
-  )
-  if (enThat) {
-    return splitAt(enThat[1], enThat[2])
   }
 
   return null
