@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
 import Link from 'next/link'
-import { prefetchHadithBook, warmHadithCatalog } from '@/api/hadith'
+import { prefetchHadithBook } from '@/api/hadith'
 import { hadithCollections } from '@/data/hadithCatalog'
 import { useRestoreListScroll } from '@/hooks/useRestoreListScroll'
 import { saveLastHadith, saveListScroll } from '@/utils/scrollMemory'
@@ -13,10 +12,6 @@ export function HadithListView() {
   const { lang, t } = useApp()
 
   useRestoreListScroll('/hadith', true)
-
-  useEffect(() => {
-    warmHadithCatalog()
-  }, [])
 
   return (
     <div className="list-page">

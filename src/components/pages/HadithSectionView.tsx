@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -12,15 +12,14 @@ import { FavoriteButton } from '@/components/FavoriteButton'
 import { ReaderSkeleton } from '@/components/ReaderSkeleton'
 import { useReaderScrollMemory } from '@/hooks/useReaderScrollMemory'
 import { parseHadithParam } from '@/utils/hadithRef'
-import { normalizeHadithText, splitHadithLead } from '@/utils/hadithText'
+import { splitHadithLead } from '@/utils/hadithText'
 import { useApp } from '@/context/AppContext'
 import './Reader.css'
 
 function HadithTranslation({ text }: { text: string }) {
-  const cleaned = normalizeHadithText(text)
-  const parts = splitHadithLead(cleaned)
+  const parts = useMemo(() => splitHadithLead(text), [text])
   if (!parts) {
-    return <p className="ayah__tr ayah__tr--hadith">{cleaned}</p>
+    return <p className="ayah__tr ayah__tr--hadith">{text}</p>
   }
   return (
     <div className="ayah__tr ayah__tr--hadith">
@@ -29,6 +28,86 @@ function HadithTranslation({ text }: { text: string }) {
     </div>
   )
 }
+
+const HadithCard = memo(function HadithCard({
+  h,
+  bookId,
+  bookTitle,
+  sectionId,
+  lang,
+  hit,
+  t,
+}: {
+  h: HadithItem
+  bookId: string
+  bookTitle: string
+  sectionId: string
+  lang: 'ru' | 'en'
+  hit: boolean
+  t: (ru: string, en: string) => string
+}) {
+  const translation = h.text || ''
+  const arabic = h.arabic || ''
+  const copyBody = translation || arabic
+
+  return (
+    <article
+      className={hit ? 'ayah ayah--hit ayah--hadith' : 'ayah ayah--hadith'}
+      id={h.id}
+    >
+      <div className="ayah__top">
+        <p className="ayah__n">
+          {Number.isInteger(h.number) ? h.number : String(h.number)}
+        </p>
+        <div className="ayah__actions">
+          <FavoriteButton
+            kind="hadith"
+            bookId={bookId}
+            sectionId={sectionId}
+            number={h.number}
+            bookTitle={bookTitle}
+            snippet={copyBody}
+          />
+          <CopyQuoteButton
+            heading={`${bookTitle} ${h.number}`}
+            body={copyBody}
+            label={t('Копировать хадис', 'Copy hadith')}
+          />
+        </div>
+      </div>
+      {(translation || arabic) && (
+        <div
+          className={
+            (translation || lang === 'ru') && arabic
+              ? 'ayah__bilingual'
+              : 'ayah__bilingual ayah__bilingual--solo'
+          }
+        >
+          {translation ? (
+            <HadithTranslation text={translation} />
+          ) : (
+            lang === 'ru' &&
+            arabic && (
+              <div
+                className="ayah__tr ayah__tr--hadith ayah__tr--pending"
+                aria-hidden="true"
+              >
+                <div className="ayah__tr-pending-line" style={{ width: '92%' }} />
+                <div className="ayah__tr-pending-line" style={{ width: '78%' }} />
+                <div className="ayah__tr-pending-line" style={{ width: '84%' }} />
+              </div>
+            )
+          )}
+          {arabic && (
+            <p className="ayah__ar" dir="rtl" lang="ar">
+              {arabic}
+            </p>
+          )}
+        </div>
+      )}
+    </article>
+  )
+})
 
 function HadithSectionNav({
   bookId,
@@ -135,6 +214,21 @@ export function HadithSectionView({
   const [hadiths, setHadiths] = useState<HadithItem[] | null>(
     started?.hadiths ?? null,
   )
+  const partialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const schedulePartialHadiths = useCallback((items: HadithItem[]) => {
+    if (partialTimerRef.current) clearTimeout(partialTimerRef.current)
+    partialTimerRef.current = setTimeout(() => {
+      startTransition(() => setHadiths(items))
+    }, 180)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (partialTimerRef.current) clearTimeout(partialTimerRef.current)
+    },
+    [],
+  )
+
   const [error, setError] = useState<string | null>(() =>
     book && sectionId ? null : 'missing',
   )
@@ -246,7 +340,7 @@ export function HadithSectionView({
     loads.push(
       fetchHadithSection(book.id, sectionId, lang, {
         onPartial: (items) => {
-          if (!cancelled) setHadiths(items)
+          if (!cancelled) schedulePartialHadiths(items)
         },
       }).then((items) => {
         if (cancelled) return
@@ -274,7 +368,7 @@ export function HadithSectionView({
     return () => {
       cancelled = true
     }
-  }, [book, sectionId, lang, initialByLang])
+  }, [book, sectionId, lang, initialByLang, schedulePartialHadiths])
 
   useEffect(() => {
     if (!hadiths || !highlight || !book) return
@@ -369,70 +463,18 @@ export function HadithSectionView({
           />
 
           <div className="ayah-list">
-            {hadiths.map((h) => {
-              const hit = highlight === h.number
-              const translation = h.text ? normalizeHadithText(h.text) : ''
-              const arabic = h.arabic ? normalizeHadithText(h.arabic) : ''
-              const copyBody = translation || arabic
-              return (
-                <article
-                  key={h.id}
-                  className={hit ? 'ayah ayah--hit ayah--hadith' : 'ayah ayah--hadith'}
-                  id={h.id}
-                >
-                  <div className="ayah__top">
-                    <p className="ayah__n">
-                      {Number.isInteger(h.number) ? h.number : String(h.number)}
-                    </p>
-                    <div className="ayah__actions">
-                      <FavoriteButton
-                        kind="hadith"
-                        bookId={book.id}
-                        sectionId={sectionId}
-                        number={h.number}
-                        bookTitle={book.title[lang]}
-                        snippet={copyBody}
-                      />
-                      <CopyQuoteButton
-                        heading={`${book.title[lang]} ${h.number}`}
-                        body={copyBody}
-                        label={t('Копировать хадис', 'Copy hadith')}
-                      />
-                    </div>
-                  </div>
-                  {(translation || arabic) && (
-                    <div
-                      className={
-                        (translation || lang === 'ru') && arabic
-                          ? 'ayah__bilingual'
-                          : 'ayah__bilingual ayah__bilingual--solo'
-                      }
-                    >
-                      {translation ? (
-                        <HadithTranslation text={translation} />
-                      ) : (
-                        lang === 'ru' &&
-                        arabic && (
-                          <div
-                            className="ayah__tr ayah__tr--hadith ayah__tr--pending"
-                            aria-hidden="true"
-                          >
-                            <div className="ayah__tr-pending-line" style={{ width: '92%' }} />
-                            <div className="ayah__tr-pending-line" style={{ width: '78%' }} />
-                            <div className="ayah__tr-pending-line" style={{ width: '84%' }} />
-                          </div>
-                        )
-                      )}
-                      {arabic && (
-                        <p className="ayah__ar" dir="rtl" lang="ar">
-                          {arabic}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </article>
-              )
-            })}
+            {hadiths.map((h) => (
+              <HadithCard
+                key={h.id}
+                h={h}
+                bookId={book.id}
+                bookTitle={book.title[lang]}
+                sectionId={sectionId}
+                lang={lang}
+                hit={highlight === h.number}
+                t={t}
+              />
+            ))}
           </div>
 
           <HadithSectionNav

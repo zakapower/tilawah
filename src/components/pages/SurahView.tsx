@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
+import { prefetchSurah } from '@/api/quran'
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
 import { fetchSurah, peekSurah, prefetchNearbySurahs, seedSurah, warmSurahBothLangs } from '@/api/quran'
 import type { SurahContent } from '@/data/types'
@@ -33,9 +34,11 @@ function mapKaraokeWordIndex(
 function SurahNav({
   n,
   top = false,
+  lang,
 }: {
   n: number
   top?: boolean
+  lang: 'ru' | 'en'
 }) {
   const { t } = useApp()
   const audio = useQuranAudio()
@@ -47,6 +50,7 @@ function SurahNav({
       <Link
         className="reader__nav-btn"
         href={`/quran/${n - 1}`}
+        onPointerEnter={() => prefetchSurah(n - 1, lang)}
         aria-label={t('Предыдущая сура', 'Previous surah')}
         title={t('Предыдущая сура', 'Previous surah')}
       >
@@ -61,6 +65,7 @@ function SurahNav({
       <Link
         className="reader__nav-btn"
         href={`/quran/${n + 1}`}
+        onPointerEnter={() => prefetchSurah(n + 1, lang)}
         aria-label={t('Следующая сура', 'Next surah')}
         title={t('Следующая сура', 'Next surah')}
       >
@@ -265,7 +270,7 @@ export function SurahView({
             )}
           </header>
 
-          <SurahNav n={n} top />
+          <SurahNav n={n} top lang={lang} />
 
           <div className="ayah-list">
             {surah.ayahsArabic.map((a, i) => {
@@ -382,7 +387,7 @@ export function SurahView({
             })}
           </div>
 
-          <SurahNav n={n} />
+          <SurahNav n={n} lang={lang} />
         </>
       )}
     </div>
