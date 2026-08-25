@@ -12,11 +12,64 @@ export function ruTranslationLooksComplete(text: string): boolean {
 
 /** Fix literal `\n` / `\r\n` from hadith CDN JSON into real newlines. */
 export function normalizeHadithText(text: string): string {
-  return text
+  const raw = text
     .replace(/\\r\\n/g, '\n')
     .replace(/\\n/g, '\n')
     .replace(/\r\n/g, '\n')
     .trim()
+  return normalizeHadithPunctuation(raw)
+}
+
+/** Typography fixes for hadith translations (commas, colons, quotes, dashes). */
+export function normalizeHadithPunctuation(text: string): string {
+  if (!text) return text
+  const ru = /[а-яё]/i.test(text)
+  return text
+    .split('\n')
+    .map((line) => normalizeHadithPunctuationLine(line, ru))
+    .join('\n')
+}
+
+function normalizeHadithPunctuationLine(line: string, ru: boolean): string {
+  let t = line.replace(/\u00A0/g, ' ').replace(/\t/g, ' ')
+  t = t.replace(/  +/g, ' ')
+  t = t.replace(/ +([,.;:!?])/g, '$1')
+  t = t.replace(/,\s*,+/g, ',')
+  t = t.replace(/,\s*\)/g, ')')
+
+  if (ru) {
+    t = normalizeRuHadithQuotes(t)
+    t = t.replace(/,([а-яё0-9«"(])/gi, ', $1')
+    t = t.replace(/;\s*([а-яё])/gi, '; $1')
+    t = t.replace(/:([«"“‘])/g, ': $1')
+    t = t.replace(/:([а-яё])/gi, ': $1')
+    t = t.replace(/\s+:/g, ':')
+    t = t.replace(/([а-яё])\s-\s([а-яё])/gi, '$1 — $2')
+    t = t.replace(/\.{4,}/g, '…')
+    t = t.replace(/\.{3}(?!…)/g, '…')
+    // Transliteration: ASCII apostrophe between letters → typographic.
+    t = t.replace(/([a-zA-Zа-яё])'([a-zA-Zа-яё])/g, '$1\u2019$2')
+    // Name marker: 'Umar / 'Abdullah at word start.
+    t = t.replace(/(^|[\s(,])'(?=[\p{L}])/gu, '$1\u2018')
+  } else {
+    t = t.replace(/:([""])/g, ': $1')
+    t = t.replace(/:([A-Za-z])/g, ': $1')
+    t = t.replace(/\s+:/g, ':')
+  }
+
+  return t.trimEnd()
+}
+
+/** Unify mixed "…"/“…”/«…» and fix half-open pairs from CDN / MT. */
+function normalizeRuHadithQuotes(text: string): string {
+  let t = text
+  t = t.replace(/[“"]([^”"\n»]+)[”"]/g, '«$1»')
+  t = t.replace(/"([^"\n»]+)»/g, '«$1»')
+  t = t.replace(/«([^»"\n]+)"/g, '«$1»')
+  t = t.replace(/"([^"\n]+)"/g, '«$1»')
+  t = t.replace(/[“"]([^”"\n]+)(?=[,.;:\s]|$)/g, '«$1»')
+  t = t.replace(/‹([^›\n]+)›/g, '«$1»')
+  return t
 }
 
 /** Fold ё→е for regex matching; indices stay aligned with the original string. */
