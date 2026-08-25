@@ -33,6 +33,9 @@ const QUOTE_START = '[—–\\-«"“]'
 const LEAD_WINDOW = 480
 const LEAD_MAX = 450
 
+const RU_OPENER =
+  '(?:сообща(?:ет|ют|ется)|переда(?:е|ё)тся|передают|передано|передается|повествуется|рассказано|было\\s+передано|рассказыва(?:ет|ют|ется))'
+
 function looksLikeIsnadLead(lead: string): boolean {
   const t = foldRuYo(lead.trim())
   if (t.length < 6 || t.length > LEAD_MAX) return false
@@ -43,12 +46,12 @@ function looksLikeIsnadLead(lead: string): boolean {
     /^(it (?:is|was) )?(?:narrated|reported)(?:\s|:|$)/i.test(t) ||
     /^reported(?:\s|:|$)/i.test(t) ||
     /^нам\s+(?:рассказал|сообщил)/i.test(t) ||
-    /^сообщается/i.test(t) ||
-    /^передают/i.test(t) ||
+    /^сообща/i.test(t) ||
+    /^переда/i.test(t) ||
     /^передал/i.test(t) ||
     /^передали/i.test(t) ||
-    /^рассказал/i.test(t) ||
-    /^рассказали/i.test(t) ||
+    /^рассказ/i.test(t) ||
+    /^рассказы/i.test(t) ||
     /^сообщил/i.test(t) ||
     /^передается/i.test(t) ||
     /^передано/i.test(t) ||
@@ -56,10 +59,11 @@ function looksLikeIsnadLead(lead: string): boolean {
     /^рассказано/i.test(t) ||
     /^было\s+передано/i.test(t) ||
     /^от\s+/i.test(t) ||
+    /,\s*(?:передал(?:а|и)?|передавал(?:а|и)?|сообщил(?:а|и)?|рассказал(?:а|и)?)\s*$/i.test(t) ||
     /narrat/i.test(t) ||
     /\breported\b/i.test(t) ||
     new RegExp(`${RU_SPEECH}\\s*:?\\s*$`, 'i').test(t) ||
-    /о том, что\s*$/i.test(t) ||
+    /(?:о том,|,\s*)что\s*$/i.test(t) ||
     /\b(said|asked|reported|narrated)\s*:?\s*$/i.test(t)
   )
 }
@@ -99,6 +103,18 @@ function splitAtFirstColon(text: string): { lead: string; body: string } | null 
   const body = text.slice(colon + 1).trim()
   if (!body) return null
 
+  const leadFold = foldRuYo(lead)
+  // RU: wrong colon deep in matn after ", что" / "передал, что" — skip.
+  if (
+    /[а-яё]/i.test(lead) &&
+    (/,?\s*что\b/i.test(leadFold) ||
+      /(?:передал(?:а|и)?|передавал(?:а|и)?|рассказал(?:а|и)?|сообщил(?:а|и)?),\s*что/i.test(
+        leadFold,
+      ))
+  ) {
+    return null
+  }
+
   // Usual case: "…: «матн»" / "…: — матн" / "Narrated X: matn"
   if (new RegExp(`^${QUOTE_START}`).test(body)) {
     return splitAt(lead, body)
@@ -115,9 +131,8 @@ function splitAtFirstColon(text: string): { lead: string; body: string } | null 
   }
 
   // Short RU openers / MT openers
-  const leadFold = foldRuYo(lead)
   if (
-    /^(?:передают\s+со\s+слов|сообщается,\s*что|сообщается\s+от|передано\s+от|передается\s+от|повествуется\s+от|рассказано\s+от|было\s+передано\s+от)/i.test(
+    /^(?:переда(?:е|ё)тся|передают\s+со\s+слов|сообща(?:ет|ют|ется)(?:,\s*что|\s+от|\s+со\s+слов)?|сообщается,\s*что|сообщается\s+от|передано\s+от|передается\s+от|повествуется\s+от|рассказано\s+от|было\s+передано\s+от)/i.test(
       leadFold,
     ) &&
     !lead.slice(20).includes(':')
@@ -159,24 +174,27 @@ function splitAtFirstSpeechQuote(
  */
 function splitAtChainSaid(text: string): { lead: string; body: string } | null {
   if (
-    !/^(?:передал|передали|рассказал|рассказали|сообщил|сообщили)/i.test(foldRuYo(text))
+    !/^(?:передал|передали|рассказал|рассказали|сообщил|сообщили|нам\s+(?:рассказал|сообщил)|рассказал\s+нам)/i.test(
+      foldRuYo(text),
+    )
   ) {
     return null
   }
 
   const window = text.slice(0, LEAD_WINDOW)
   const re =
-    /(?:^|,\s*|\s+)(?:он|она|они)\s+(?:сказал(?:а|и)?|сообщил(?:а|и)?|рассказал(?:а|и)?)\s*:/giu
+    /(?:^|,\s*|\s+)(?:(?:он|она|они)|(?:\([^)]*сказал[^)]*\))|(?:[\p{L}''\-\.]+(?:\s+[\p{L}''\-\.]+){0,4}))\s*(?:сказал(?:а|и|авший)?|сказавший|сообщил(?:а|и|авший)?|сообщивший|рассказал(?:а|и|авший)?|рассказавший)\s*:/giu
   let m: RegExpExecArray | null
+  let lastHit: { lead: string; body: string } | null = null
   while ((m = re.exec(window))) {
     const colonAt = m.index + m[0].lastIndexOf(':')
     const lead = text.slice(0, colonAt + 1)
     const body = text.slice(colonAt + 1).trim()
     const hit = splitAt(lead, body)
-    if (hit) return hit
+    if (hit) lastHit = hit
   }
 
-  return null
+  return lastHit
 }
 
 /** Last "о том, что" in the isnad opening (long Bukhari-style chains). */
@@ -240,9 +258,20 @@ function splitAtRuCommaChto(
   folded: string,
 ): { lead: string; body: string } | null {
   const patterns = [
-    /^((?:сообщается|переда(?:е|ё)тся|передано|передается|повествуется|рассказано|было\s+передано)\s+от[^:]{3,280}?,\s*что)\s*([\s\S].+)$/iu,
-    /^((?:сообщается|переда(?:е|ё)тся|передают)\s+[^:]{3,320}?,\s*что)\s*([\s\S].+)$/iu,
-    /^((?:сообщается|переда(?:е|ё)тся|передают)\s+со\s+слов[^:]{3,400}?,\s*что)\s*([\s\S].+)$/iu,
+    new RegExp(
+      `^((?:${RU_OPENER})\\s+от[^:]{3,280}?,\\s*что)\\s*([\\s\\S]+)$`,
+      'iu',
+    ),
+    new RegExp(
+      `^((?:${RU_OPENER})(?:,\\s*от|\\s+от|\\s+со\\s+слов|\\s*)[^:]{3,320}?,\\s*что)\\s*([\\s\\S]+)$`,
+      'iu',
+    ),
+    new RegExp(
+      `^((?:${RU_OPENER})\\s+со\\s+слов[^:]{3,400}?,\\s*что)\\s*([\\s\\S]+)$`,
+      'iu',
+    ),
+    new RegExp(`^((?:${RU_OPENER})\\s+что)\\s*([\\s\\S]+)$`, 'iu'),
+    new RegExp(`^((?:${RU_OPENER}),\\s*что)\\s*([\\s\\S]+)$`, 'iu'),
   ]
 
   for (const re of patterns) {
@@ -254,6 +283,52 @@ function splitAtRuCommaChto(
   }
 
   return null
+}
+
+/** RU: "Имя …, передал, что матн" / "… передавал со слов X, что …". */
+function splitAtRuPeredalChto(
+  cleaned: string,
+  folded: string,
+): { lead: string; body: string } | null {
+  const patterns = [
+    /^(.{3,280}?\s+(?:передал(?:а|и)?|передавал(?:а|и)?|сообщил(?:а|и)?|рассказал(?:а|и)?)),\s*что\s*([\s\S]+)$/iu,
+    /^(.{10,280}?,\s*(?:передал(?:а|и)?|передавал(?:а|и)?|сообщил(?:а|и)?|рассказал(?:а|и)?)),\s*что\s*([\s\S]+)$/iu,
+    /^(.{10,320}?передавал(?:а|и)?\s+со\s+слов[^:]{3,220}?,\s*что)\s*([\s\S]+)$/iu,
+    /^((?:рассказывал(?:а|и)?|рассказал(?:а|и)?)\s+[^:]{3,280}?)(?::|,\s*что)\s*([\s\S]+)$/iu,
+    /^((?:от)\s+[^:]{3,220}?,\s*(?:передавш(?:его|ая|ий|ем)|со\s+слов)[^:]{0,160}?,\s*что)\s*([\s\S]+)$/iu,
+    /^((?:от)\s+[^:]{3,220}?)\s+(?:приводится|переда(?:е|ё)тся)\s+([\s\S]+)$/iu,
+  ]
+
+  for (const re of patterns) {
+    const m = folded.match(re)
+    if (!m || m[2].trim().length < 8) continue
+    const gap = m[0].length - m[1].length - m[2].length
+    const hit = splitAt(cleaned.slice(0, m[1].length), cleaned.slice(m[1].length + gap))
+    if (hit) return hit
+  }
+
+  return null
+}
+
+function splitAtRuQuoteMatn(text: string): { lead: string; body: string } | null {
+  const fold = foldRuYo(text)
+  if (!/^(?:рассказ|переда|сообщ|передал|нам\s+(?:рассказ|сообщ))/i.test(fold)) return null
+
+  const window = text.slice(0, LEAD_WINDOW)
+  const qIdx = window.indexOf('«')
+  if (qIdx < 24) return null
+
+  const lead = window.slice(0, qIdx).replace(/[\s,;]+$/, '')
+  const tail = foldRuYo(lead.slice(-48))
+  if (
+    !/[:;]$/.test(lead) &&
+    !/(?:,\s*что|о том, что|сказал(?:а|и)?|сказавший|дополнив|сообщил(?:а|и)?)$/.test(tail)
+  ) {
+    return null
+  }
+
+  const body = text.slice(text.indexOf('«', qIdx)).trim()
+  return splitAt(lead, body)
 }
 
 function splitFromFoldedMatch(
@@ -272,37 +347,45 @@ export function splitHadithLead(
   if (!cleaned) return null
   const folded = foldRuYo(cleaned)
 
-  // 1) First colon — the usual boundary ("Narrated X: …" / "Передают со слов X: «…»").
-  const colonSplit = splitAtFirstColon(cleaned)
-  if (colonSplit) return colonSplit
-
-  // 2) RU "… от X, что матн" / "Сообщается, что …" (CDN + MT; often with ё).
+  // 1) RU "… от X, что матн" / "Сообщают со слов …, что" (CDN + MT; often with ё).
   const ruComma = splitAtRuCommaChto(cleaned, folded)
   if (ruComma) return ruComma
 
-  // 3) First speech verb + colon + quote in the opening only.
-  const speechQuote = splitAtFirstSpeechQuote(cleaned)
-  if (speechQuote) return speechQuote
+  // 2) RU "Имя …, передал, что" / "передавал со слов …, что".
+  const ruPeredal = splitAtRuPeredalChto(cleaned, folded)
+  if (ruPeredal) return ruPeredal
 
-  // 4) "Передал нам …, он сказал: матн" (no quote required).
-  const chainSaid = splitAtChainSaid(cleaned)
-  if (chainSaid) return chainSaid
-
-  // 5) EN "… that matn" / "on the authority of … that"
-  const enThat = splitAtEnThat(cleaned)
-  if (enThat) return enThat
-
-  // 6) EN "Name narrated that …"
-  const nameNar = splitAtNameNarrated(cleaned)
-  if (nameNar) return nameNar
-
-  // 7) Long isnad: "…, о том, что матн"
+  // 3) Long isnad: "…, о том, что матн"
   const otom = splitAtRuOtomChto(cleaned)
   if (otom) return otom
 
-  // 8) Legacy fallback: "Сообщается/Передают со слов …, что матн"
+  // 4) First colon — "Narrated X: …" / "Передают со слов X: «…»".
+  const colonSplit = splitAtFirstColon(cleaned)
+  if (colonSplit) return colonSplit
+
+  // 5) First speech verb + colon + quote in the opening only.
+  const speechQuote = splitAtFirstSpeechQuote(cleaned)
+  if (speechQuote) return speechQuote
+
+  // 6) "Передал нам …, он сказал: матн" (no quote required).
+  const chainSaid = splitAtChainSaid(cleaned)
+  if (chainSaid) return chainSaid
+
+  // 7) EN "… that matn" / "on the authority of … that"
+  const enThat = splitAtEnThat(cleaned)
+  if (enThat) return enThat
+
+  // 8) EN "Name narrated that …"
+  const nameNar = splitAtNameNarrated(cleaned)
+  if (nameNar) return nameNar
+
+  // 9) Long Muslim/Bukhari chains ending before «…» matn.
+  const ruQuote = splitAtRuQuoteMatn(cleaned)
+  if (ruQuote) return ruQuote
+
+  // 10) Legacy fallback: "Сообщается/Передают со слов …, что матн"
   const soSlov = folded.match(
-    /^((?:сообщается|передают)\s+со\s+слов[^:]{3,400}?,\s*что)\s*([\s\S].+)$/iu,
+    /^((?:сообща(?:ет|ют|ется)|передают)\s+со\s+слов[^:]{3,400}?,\s*что)\s*([\s\S]+)$/iu,
   )
   if (soSlov && soSlov[2].trim().length > 8) {
     const hit = splitFromFoldedMatch(cleaned, soSlov)
