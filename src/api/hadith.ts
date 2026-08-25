@@ -3,7 +3,7 @@ import { getHadithCollection, hadithCollections } from '../data/hadithCatalog'
 import { getHadithSectionsStatic } from '../data/hadithSectionsMeta'
 import { sectionNameRu } from '../data/hadithSectionsRu'
 import { translateEnToRuMany } from '../lib/translateEnRu'
-import { cacheGet, cacheSet, warmCache } from '../utils/pageCache'
+import { cacheGet, cacheSet } from '../utils/pageCache'
 import { normalizeHadithText, ruTranslationLooksComplete } from '../utils/hadithText'
 
 const CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1'
@@ -300,6 +300,68 @@ export function hadithSectionNeedsRuBackfill(items: HadithItem[]) {
 /** Dedupe concurrent section loads (shell vs full MT must not clobber each other). */
 const sectionInflight = new Map<string, Promise<HadithItem[]>>()
 
+/** Limit parallel CDN prefetches so chapter opens stay snappy. */
+const warmQueue: Array<() => Promise<unknown>> = []
+let warmRunning = 0
+const WARM_CONCURRENCY = 5
+
+function drainWarmQueue() {
+  while (warmRunning < WARM_CONCURRENCY && warmQueue.length > 0) {
+    const task = warmQueue.shift()!
+    warmRunning += 1
+    void task()
+      .catch(() => {})
+      .finally(() => {
+        warmRunning -= 1
+        drainWarmQueue()
+      })
+  }
+}
+
+function warmHadithTask(task: () => Promise<unknown>, priority = false) {
+  if (priority) warmQueue.unshift(task)
+  else warmQueue.push(task)
+  drainWarmQueue()
+}
+
+function sectionCached(bookId: string, sectionId: string, lang: Lang) {
+  return Boolean(peekHadithSection(bookId, sectionId, lang))
+}
+
+/** CDN shell only — instant chapter open; MT runs separately when needed. */
+function warmHadithSectionShell(
+  bookId: string,
+  sectionId: string,
+  lang: Lang,
+  priority = false,
+) {
+  if (sectionCached(bookId, sectionId, lang)) return
+  warmHadithTask(
+    () => fetchHadithSection(bookId, sectionId, lang, { machineTranslate: false }),
+    priority,
+  )
+}
+
+/** Full RU backfill after shell is warm. */
+function warmHadithSectionMt(bookId: string, sectionId: string, priority = false) {
+  const cached = peekHadithSection(bookId, sectionId, 'ru')
+  if (cached && !sectionNeedsRuBackfill(cached)) return
+  warmHadithTask(() => fetchHadithSection(bookId, sectionId, 'ru'), priority)
+}
+
+function warmHadithSectionPair(
+  bookId: string,
+  sectionId: string,
+  lang: Lang,
+  options?: { mt?: boolean; priority?: boolean },
+) {
+  const other: Lang = lang === 'ru' ? 'en' : 'ru'
+  const priority = options?.priority ?? false
+  warmHadithSectionShell(bookId, sectionId, lang, priority)
+  warmHadithSectionShell(bookId, sectionId, other, priority)
+  if (options?.mt && lang === 'ru') warmHadithSectionMt(bookId, sectionId, priority)
+}
+
 export async function fetchHadithSection(
   bookId: string,
   sectionId: string,
@@ -481,15 +543,9 @@ export function seedHadithSection(
 
 /** Warm both language caches for a chapter (for lang tab switching). */
 export function warmHadithSectionBothLangs(bookId: string, sectionId: string) {
-  if (!peekHadithSection(bookId, sectionId, 'en')) {
-    warmCache(() =>
-      fetchHadithSection(bookId, sectionId, 'en', { machineTranslate: false }),
-    )
-  }
-  const ru = peekHadithSection(bookId, sectionId, 'ru')
-  if (!ru || sectionNeedsRuBackfill(ru)) {
-    warmCache(() => fetchHadithSection(bookId, sectionId, 'ru'))
-  }
+  warmHadithSectionShell(bookId, sectionId, 'en')
+  warmHadithSectionShell(bookId, sectionId, 'ru')
+  warmHadithSectionMt(bookId, sectionId)
 }
 
 /** Prefetch adjacent hadith chapters in both languages (fast nav / lang switch). */
@@ -501,20 +557,11 @@ export function prefetchNearbyHadithSections(
 ) {
   const idx = sectionIds.indexOf(sectionId)
   if (idx < 0) return
-  const prevId = sectionIds[idx - 1]
-  const nextId = sectionIds[idx + 1]
-  const other: Lang = lang === 'ru' ? 'en' : 'ru'
-  for (const id of [prevId, nextId].filter(Boolean) as string[]) {
-    const isNext = id === nextId
-    warmCache(() =>
-      fetchHadithSection(bookId, id, lang, {
-        // Shell for prev; MT only for the next chapter user is likelier to open.
-        machineTranslate: lang === 'ru' && isNext,
-      }),
-    )
-    warmCache(() =>
-      fetchHadithSection(bookId, id, other, { machineTranslate: false }),
-    )
+  const neighbors = sectionIds.slice(Math.max(0, idx - 2), idx + 3)
+  for (const id of neighbors) {
+    if (id === sectionId) continue
+    const isForward = sectionIds.indexOf(id) > idx
+    warmHadithSectionPair(bookId, id, lang, { mt: lang === 'ru' && isForward })
   }
 }
 
@@ -525,38 +572,35 @@ export function warmHadithCatalog() {
   if (catalogWarmStarted) return
   catalogWarmStarted = true
   for (const book of hadithCollections) {
-    warmCache(() => fetchHadithSections(book.id, 'ru'))
-    warmCache(() => fetchHadithSections(book.id, 'en'))
+    warmHadithTask(() => fetchHadithSections(book.id, 'ru'))
+    warmHadithTask(() => fetchHadithSections(book.id, 'en'))
+    const sections = getHadithSectionsStatic(book.apiBook)
+    const firstId = sections?.[0]?.id
+    if (firstId) warmHadithSectionPair(book.id, firstId, 'ru')
   }
 }
 
 /** Prefetch chapter list for a collection. */
 export function prefetchHadithBook(bookId: string, lang: Lang) {
-  warmCache(() => fetchHadithSections(bookId, lang))
+  warmHadithTask(() => fetchHadithSections(bookId, lang))
   const other: Lang = lang === 'ru' ? 'en' : 'ru'
-  warmCache(() => fetchHadithSections(bookId, other))
+  warmHadithTask(() => fetchHadithSections(bookId, other))
+  const col = getHadithCollection(bookId)
+  if (!col) return
+  const sections = getHadithSectionsStatic(col.apiBook)
+  const firstId = sections?.[0]?.id
+  if (firstId) warmHadithSectionPair(bookId, firstId, lang, { mt: lang === 'ru' })
 }
 
-/** Prefetch a single chapter's hadiths. */
+/** Prefetch a single chapter's hadiths (shell first, MT in background for RU). */
 export function prefetchHadithSection(
   bookId: string,
   sectionId: string,
   lang: Lang,
 ) {
-  warmCache(async () => {
-    await fetchHadithSections(bookId, lang)
-    // For RU, prefetch with MT so gaps (e.g. Abu Dawud 11) are filled before open.
-    await fetchHadithSection(bookId, sectionId, lang, {
-      machineTranslate: lang === 'ru',
-    })
-  })
-  const other: Lang = lang === 'ru' ? 'en' : 'ru'
-  warmCache(async () => {
-    await fetchHadithSections(bookId, other)
-    await fetchHadithSection(bookId, sectionId, other, {
-      machineTranslate: false,
-    })
-  })
+  warmHadithTask(() => fetchHadithSections(bookId, lang))
+  warmHadithTask(() => fetchHadithSections(bookId, lang === 'ru' ? 'en' : 'ru'))
+  warmHadithSectionPair(bookId, sectionId, lang, { mt: lang === 'ru', priority: true })
 }
 
 /** Prefetch the first few chapters after opening a book. */
@@ -564,26 +608,20 @@ export function prefetchHadithBookSections(
   bookId: string,
   lang: Lang,
   sectionIds: string[],
-  count = 3,
+  count = 6,
 ) {
-  const other: Lang = lang === 'ru' ? 'en' : 'ru'
   for (const [i, id] of sectionIds.slice(0, count).entries()) {
-    if (i === 0) {
-      warmCache(() => fetchHadithSection(bookId, id, 'en', { machineTranslate: false }))
-      if (lang === 'ru') {
-        warmCache(() => fetchHadithSection(bookId, id, 'ru'))
-      } else {
-        warmCache(() =>
-          fetchHadithSection(bookId, id, 'ru', { machineTranslate: false }),
-        )
-      }
-      continue
-    }
-    warmCache(() =>
-      fetchHadithSection(bookId, id, lang, { machineTranslate: false }),
-    )
-    warmCache(() =>
-      fetchHadithSection(bookId, id, other, { machineTranslate: false }),
-    )
+    warmHadithSectionPair(bookId, id, lang, { mt: lang === 'ru' && i === 0 })
+  }
+}
+
+/** Idle batch: warm CDN shells for many chapters without blocking UI. */
+export function warmHadithBookSectionsIdle(
+  bookId: string,
+  lang: Lang,
+  sectionIds: string[],
+) {
+  for (const id of sectionIds) {
+    warmHadithSectionPair(bookId, id, lang)
   }
 }

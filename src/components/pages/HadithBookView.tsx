@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { fetchHadithSections, peekHadithSections, prefetchHadithBookSections, prefetchHadithSection, seedHadithSections } from '@/api/hadith'
+import { fetchHadithSections, peekHadithSections, prefetchHadithBookSections, prefetchHadithSection, seedHadithSections, warmHadithBookSectionsIdle } from '@/api/hadith'
 import { getHadithCollection } from '@/data/hadithCatalog'
 import type { HadithSectionMeta } from '@/data/types'
 import { ReaderSkeleton } from '@/components/ReaderSkeleton'
 import { useRestoreListScroll } from '@/hooks/useRestoreListScroll'
-import { saveLastHadith, saveListScroll } from '@/utils/scrollMemory'
+import { saveLastHadith, saveListScroll, peekLastHadithSection } from '@/utils/scrollMemory'
 import {
   findSectionForHadith,
   hadithRefPath,
@@ -78,11 +78,41 @@ export function HadithBookView({
 
   useEffect(() => {
     if (!book || !sections?.length) return
-    prefetchHadithBookSections(
-      book.id,
-      lang,
-      sections.map((s) => s.id),
-    )
+    const ids = sections.map((s) => s.id)
+    prefetchHadithBookSections(book.id, lang, ids)
+    const lastSection = peekLastHadithSection(book.id)
+    if (lastSection && ids.includes(lastSection)) {
+      prefetchHadithSection(book.id, lastSection, lang)
+    }
+    let cancelled = false
+    const warmRest = () => {
+      if (cancelled) return
+      warmHadithBookSectionsIdle(book.id, lang, ids)
+    }
+    const ric = (
+      window as Window & {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number
+        cancelIdleCallback?: (id: number) => void
+      }
+    ).requestIdleCallback
+    const cic = (
+      window as Window & { cancelIdleCallback?: (id: number) => void }
+    ).cancelIdleCallback
+    let idleId: number | undefined
+    let timeoutId: number | undefined
+    if (typeof ric === 'function') {
+      idleId = ric(warmRest, { timeout: 4000 })
+    } else {
+      timeoutId = window.setTimeout(warmRest, 600)
+    }
+    return () => {
+      cancelled = true
+      if (idleId != null && typeof cic === 'function') cic(idleId)
+      if (timeoutId != null) window.clearTimeout(timeoutId)
+    }
   }, [book, lang, sections])
 
   const hadithNum = useMemo(() => parseHadithNumber(query), [query])
@@ -212,7 +242,6 @@ export function HadithBookView({
             <li key={s.id} id={`hadith-section-${book.id}-${s.id}`}>
               <Link
                 href={`/hadith/${book.id}/${s.id}`}
-                prefetch={false}
                 onPointerEnter={() =>
                   prefetchHadithSection(book.id, s.id, lang)
                 }

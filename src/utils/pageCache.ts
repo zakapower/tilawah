@@ -4,7 +4,7 @@
  */
 
 const mem = new Map<string, unknown>()
-const MAX_KEYS = 96
+const MAX_KEYS = 192
 
 function storageKey(ns: string) {
   return `tilawah-cache-v4:${ns}`

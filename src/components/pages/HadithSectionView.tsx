@@ -215,11 +215,19 @@ export function HadithSectionView({
     started?.hadiths ?? null,
   )
   const partialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hadithsRef = useRef<HadithItem[] | null>(started?.hadiths ?? null)
+  hadithsRef.current = hadiths
   const schedulePartialHadiths = useCallback((items: HadithItem[]) => {
     if (partialTimerRef.current) clearTimeout(partialTimerRef.current)
+    // First shell paint: no debounce; later MT chunks: short debounce.
+    const delay = hadithsRef.current ? 80 : 0
+    if (delay === 0) {
+      startTransition(() => setHadiths(items))
+      return
+    }
     partialTimerRef.current = setTimeout(() => {
       startTransition(() => setHadiths(items))
-    }, 180)
+    }, delay)
   }, [])
 
   useEffect(

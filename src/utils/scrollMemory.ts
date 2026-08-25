@@ -53,6 +53,18 @@ export function saveLastHadith(bookId: string, sectionId?: string) {
   }
 }
 
+/** sectionId for a book from last visit, e.g. bukhari → "1" */
+export function peekLastHadithSection(bookId: string): string | null {
+  try {
+    const raw = sessionStorage.getItem(LAST_HADITH)
+    if (!raw?.startsWith(`${bookId}/`)) return null
+    const sectionId = raw.slice(bookId.length + 1)
+    return sectionId || null
+  } catch {
+    return null
+  }
+}
+
 export function peekLastHadithAnchor(listPath: string) {
   try {
     const raw = sessionStorage.getItem(LAST_HADITH)
