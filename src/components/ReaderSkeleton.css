@@ -102,6 +102,11 @@
   flex-shrink: 0;
 }
 
+.reader-skel__nav-btn--play {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
 /* Match .reader__nav-btn--ghost — keep layout, hide bone on surah 1 / 114 */
 .reader-skel__nav-btn--ghost {
   visibility: hidden;
@@ -160,11 +165,31 @@
   height: 0.9rem;
 }
 
-.reader-skel__card--hadith .reader-skel__line--tr {
-  margin-top: 0.35rem;
+.reader-skel__card--hadith .reader-skel__card-top {
+  margin-bottom: 1rem;
 }
 
-.reader-skel__card--hadith .reader-skel__card-top + .reader-skel__line--tr {
+.reader-skel__hadith-bilingual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 2.5rem;
+  row-gap: 1rem;
+  align-items: start;
+}
+
+.reader-skel__hadith-tr {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+}
+
+.reader-skel__hadith-ar {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: end;
+}
+
+.reader-skel__card--hadith .reader-skel__line--tr {
   margin-top: 0;
 }
 
@@ -276,6 +301,11 @@
     height: 2.75rem;
   }
 
+  .reader-skel__nav-btn--play {
+    width: 2.85rem;
+    height: 2.85rem;
+  }
+
   .reader-skel__card {
     padding: 1rem 0.9rem 1.05rem;
   }
@@ -283,6 +313,12 @@
   .reader-skel__icon {
     width: 2.75rem;
     height: 2.75rem;
+  }
+
+  .reader-skel__hadith-bilingual {
+    grid-template-columns: 1fr;
+    column-gap: 0;
+    row-gap: 1rem;
   }
 
   .reader-skel--chapters {

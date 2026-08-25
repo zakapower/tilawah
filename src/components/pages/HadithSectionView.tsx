@@ -319,7 +319,31 @@ export function HadithSectionView({
             <h1>{title}</h1>
             <p className="reader__sub">{book.title[lang]}</p>
           </header>
-          <ReaderSkeleton variant="hadith" />
+          <HadithSectionNav
+            bookId={book.id}
+            prevId={adjacent.prevId}
+            nextId={adjacent.nextId}
+            index={adjacent.index}
+            total={adjacent.total}
+            lang={lang}
+            top
+          />
+          <ReaderSkeleton
+            variant="hadith"
+            hideHead
+            hideNav
+            hidePrev={!adjacent.prevId}
+            hideNext={!adjacent.nextId}
+          />
+        </>
+      )}
+      {!hadiths && !error && title && !sections && (
+        <>
+          <header className="reader__head">
+            <h1>{title}</h1>
+            <p className="reader__sub">{book.title[lang]}</p>
+          </header>
+          <ReaderSkeleton variant="hadith" hideHead />
         </>
       )}
 
@@ -379,12 +403,26 @@ export function HadithSectionView({
                   {(translation || arabic) && (
                     <div
                       className={
-                        translation && arabic
+                        (translation || lang === 'ru') && arabic
                           ? 'ayah__bilingual'
                           : 'ayah__bilingual ayah__bilingual--solo'
                       }
                     >
-                      {translation && <HadithTranslation text={translation} />}
+                      {translation ? (
+                        <HadithTranslation text={translation} />
+                      ) : (
+                        lang === 'ru' &&
+                        arabic && (
+                          <div
+                            className="ayah__tr ayah__tr--hadith ayah__tr--pending"
+                            aria-hidden="true"
+                          >
+                            <div className="ayah__tr-pending-line" style={{ width: '92%' }} />
+                            <div className="ayah__tr-pending-line" style={{ width: '78%' }} />
+                            <div className="ayah__tr-pending-line" style={{ width: '84%' }} />
+                          </div>
+                        )
+                      )}
                       {arabic && (
                         <p className="ayah__ar" dir="rtl" lang="ar">
                           {arabic}

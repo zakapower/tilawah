@@ -12,6 +12,13 @@ type Props = {
   variant?: ReaderSkeletonVariant
   /** Surah 1–114: hide edge arrows like real SurahNav (no prev on 1, no next on 114). */
   number?: number
+  /** Parent already rendered the real page header. */
+  hideHead?: boolean
+  /** Parent already rendered the real chapter/surah nav. */
+  hideNav?: boolean
+  /** Hadith chapter edges (when known from sections list). */
+  hidePrev?: boolean
+  hideNext?: boolean
 }
 
 function navBtnClass(ghost: boolean) {
@@ -20,23 +27,34 @@ function navBtnClass(ghost: boolean) {
   }`
 }
 
-export function ReaderSkeleton({ variant = 'hadith', number }: Props) {
+export function ReaderSkeleton({
+  variant = 'hadith',
+  number,
+  hideHead = false,
+  hideNav = false,
+  hidePrev: hidePrevProp,
+  hideNext: hideNextProp,
+}: Props) {
   const isChapters = variant === 'chapters'
   const isSurah = variant === 'surah'
   const isHadith = variant === 'hadith'
-  const showNav = isSurah || isHadith
+  const showNav = (isSurah || isHadith) && !hideNav
+  const showHead = !isChapters && !hideHead
   const count = isChapters ? 8 : 5
-  const hidePrev = isSurah && number != null && number <= 1
-  const hideNext = isSurah && number != null && number >= 114
+  const hidePrev =
+    hidePrevProp ?? (isSurah && number != null && number <= 1)
+  const hideNext =
+    hideNextProp ?? (isSurah && number != null && number >= 114)
 
   return (
     <div
       className={`reader-skel reader-skel--${variant}`}
       role="status"
       aria-busy="true"
-      aria-hidden="true"
+      aria-live="polite"
+      aria-label="Loading"
     >
-      {!isChapters && (
+      {showHead && (
         <header className="reader-skel__head">
           {isSurah && <div className="reader-skel__bone reader-skel__ar-title" />}
           <div className="reader-skel__bone reader-skel__title" />
@@ -52,16 +70,16 @@ export function ReaderSkeleton({ variant = 'hadith', number }: Props) {
             <>
               <div className="reader-skel__bone reader-skel__nav-meta" />
               <div className="reader-skel__nav-row">
-                <div className={navBtnClass(hidePrev)} />
-                <div className="reader-skel__bone reader-skel__nav-btn" />
-                <div className={navBtnClass(hideNext)} />
+                <div className={navBtnClass(Boolean(hidePrev))} />
+                <div className="reader-skel__bone reader-skel__nav-btn reader-skel__nav-btn--play" />
+                <div className={navBtnClass(Boolean(hideNext))} />
               </div>
             </>
           ) : (
             <>
-              <div className="reader-skel__bone reader-skel__nav-btn" />
+              <div className={navBtnClass(Boolean(hidePrev))} />
               <div className="reader-skel__bone reader-skel__nav-meta" />
-              <div className="reader-skel__bone reader-skel__nav-btn" />
+              <div className={navBtnClass(Boolean(hideNext))} />
             </>
           )}
         </div>
@@ -117,18 +135,38 @@ export function ReaderSkeleton({ variant = 'hadith', number }: Props) {
                   <div className="reader-skel__bone reader-skel__icon" />
                 </div>
               </div>
-              <div
-                className="reader-skel__bone reader-skel__line reader-skel__line--tr"
-                style={{ width: LINE_WIDTHS[i % LINE_WIDTHS.length] }}
-              />
-              <div
-                className="reader-skel__bone reader-skel__line reader-skel__line--tr"
-                style={{ width: LINE_WIDTHS[(i + 1) % LINE_WIDTHS.length] }}
-              />
-              <div
-                className="reader-skel__bone reader-skel__line reader-skel__line--tr reader-skel__line--sm"
-                style={{ width: LINE_WIDTHS[(i + 2) % LINE_WIDTHS.length] }}
-              />
+              <div className="reader-skel__hadith-bilingual">
+                <div className="reader-skel__hadith-tr">
+                  <div
+                    className="reader-skel__bone reader-skel__line reader-skel__line--tr"
+                    style={{ width: LINE_WIDTHS[i % LINE_WIDTHS.length] }}
+                  />
+                  <div
+                    className="reader-skel__bone reader-skel__line reader-skel__line--tr"
+                    style={{
+                      width: LINE_WIDTHS[(i + 1) % LINE_WIDTHS.length],
+                    }}
+                  />
+                  <div
+                    className="reader-skel__bone reader-skel__line reader-skel__line--tr reader-skel__line--sm"
+                    style={{
+                      width: LINE_WIDTHS[(i + 2) % LINE_WIDTHS.length],
+                    }}
+                  />
+                </div>
+                <div className="reader-skel__hadith-ar">
+                  <div
+                    className="reader-skel__bone reader-skel__line reader-skel__line--ar"
+                    style={{ width: AR_WIDTHS[i % AR_WIDTHS.length] }}
+                  />
+                  <div
+                    className="reader-skel__bone reader-skel__line reader-skel__line--ar"
+                    style={{
+                      width: AR_WIDTHS[(i + 3) % AR_WIDTHS.length],
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           ),
         )}
@@ -136,13 +174,13 @@ export function ReaderSkeleton({ variant = 'hadith', number }: Props) {
 
       {showNav && (
         <div className="reader-skel__nav reader-skel__nav--bottom">
-          <div className={navBtnClass(hidePrev)} />
+          <div className={navBtnClass(Boolean(hidePrev))} />
           {isSurah ? (
             <span className="reader-skel__nav-spacer" aria-hidden="true" />
           ) : (
             <div className="reader-skel__bone reader-skel__nav-meta" />
           )}
-          <div className={navBtnClass(hideNext)} />
+          <div className={navBtnClass(Boolean(hideNext))} />
         </div>
       )}
     </div>

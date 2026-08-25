@@ -419,6 +419,49 @@
   color: var(--ink);
 }
 
+.ayah__tr--pending {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.ayah__tr-pending-line {
+  height: 1.02rem;
+  border-radius: 0.35rem;
+  max-width: 100%;
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--wash) 88%, var(--line)) 0%,
+    color-mix(in srgb, var(--surface) 70%, var(--wash)) 42%,
+    color-mix(in srgb, var(--wash) 88%, var(--line)) 78%
+  );
+  background-size: 220% 100%;
+  animation: reader-skel-shimmer 1.55s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ayah__tr-pending-line {
+    animation: none;
+    background: color-mix(in srgb, var(--wash) 75%, var(--line));
+    opacity: 0.85;
+  }
+}
+
+@keyframes reader-skel-shimmer {
+  0% {
+    background-position: 100% 0;
+    opacity: 0.72;
+  }
+  50% {
+    background-position: 0% 0;
+    opacity: 1;
+  }
+  100% {
+    background-position: 100% 0;
+    opacity: 0.72;
+  }
+}
+
 .reader__nav {
   display: flex;
   justify-content: space-between;
