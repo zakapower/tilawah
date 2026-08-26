@@ -15,9 +15,20 @@ function fromReaderToList(from: string, to: string) {
   return false
 }
 
+/** /quran/3 ↔ /quran/3:70-75 — та же сура, скролл держит SurahView. */
+function sameSurahReaderNav(from: string, to: string) {
+  const surahOf = (p: string) => {
+    const m = /^\/quran\/(\d+)/.exec(p)
+    return m ? m[1] : null
+  }
+  const a = surahOf(from)
+  const b = surahOf(to)
+  return a != null && a === b
+}
+
 /**
  * При смене маршрута — наверх.
- * Исключение: возврат из читалки на список (там scrollMemory списка).
+ * Исключения: возврат из читалки на список; смена аятного ref внутри одной суры.
  */
 export function ScrollToTop() {
   const pathname = usePathname()
@@ -33,6 +44,7 @@ export function ScrollToTop() {
     const from = prevPath.current
     prevPath.current = pathname
     if (fromReaderToList(from, pathname)) return
+    if (sameSurahReaderNav(from, pathname)) return
     window.scrollTo(0, 0)
   }, [pathname])
 

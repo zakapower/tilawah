@@ -6,7 +6,8 @@ import {
 
 /**
  * Сохраняет позицию чтения (на будущее / отладку).
- * При входе в читалку всегда оставляем верх — кроме skip (аят в URL / ?h=).
+ * Скролл наверх при смене маршрута — в ScrollToTop; здесь не трогаем window.scrollY
+ * (иначе /quran/N:a-b → /quran/N сбрасывает якорь после remount).
  */
 export function useReaderScrollMemory(
   path: string | null,
@@ -41,10 +42,5 @@ export function useReaderScrollMemory(
       document.removeEventListener('pointerdown', persist, true)
       window.removeEventListener('pagehide', persist)
     }
-  }, [path, ready, skip])
-
-  useEffect(() => {
-    if (!path || !ready || skip) return
-    window.scrollTo(0, 0)
   }, [path, ready, skip])
 }

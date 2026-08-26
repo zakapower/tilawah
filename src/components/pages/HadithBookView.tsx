@@ -87,7 +87,10 @@ export function HadithBookView({
     let cancelled = false
     const warmRest = () => {
       if (cancelled) return
-      warmHadithBookSectionsIdle(book.id, lang, ids)
+      warmHadithBookSectionsIdle(book.id, lang, ids, {
+        focusId: lastSection,
+        max: 14,
+      })
     }
     const ric = (
       window as Window & {
@@ -104,9 +107,9 @@ export function HadithBookView({
     let idleId: number | undefined
     let timeoutId: number | undefined
     if (typeof ric === 'function') {
-      idleId = ric(warmRest, { timeout: 4000 })
+      idleId = ric(warmRest, { timeout: 6000 })
     } else {
-      timeoutId = window.setTimeout(warmRest, 600)
+      timeoutId = window.setTimeout(warmRest, 1200)
     }
     return () => {
       cancelled = true
@@ -222,6 +225,21 @@ export function HadithBookView({
                 hadithTarget.section.id,
                 hadithTarget.number,
               )}
+              prefetch={false}
+              onPointerEnter={() =>
+                prefetchHadithSection(
+                  book.id,
+                  hadithTarget.section.id,
+                  lang,
+                )
+              }
+              onPointerDown={() =>
+                prefetchHadithSection(
+                  book.id,
+                  hadithTarget.section.id,
+                  lang,
+                )
+              }
             >
               <span className="card-list__n">{hadithTarget.number}</span>
               <span className="card-list__body">
@@ -242,7 +260,11 @@ export function HadithBookView({
             <li key={s.id} id={`hadith-section-${book.id}-${s.id}`}>
               <Link
                 href={`/hadith/${book.id}/${s.id}`}
+                prefetch={false}
                 onPointerEnter={() =>
+                  prefetchHadithSection(book.id, s.id, lang)
+                }
+                onPointerDown={() =>
                   prefetchHadithSection(book.id, s.id, lang)
                 }
                 onClick={() => {

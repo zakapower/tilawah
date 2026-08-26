@@ -84,6 +84,7 @@ export function Header() {
 
   function prefetchRoute(href: string) {
     router.prefetch(href)
+    if (href === '/hadith') warmHadithCatalog()
   }
 
   const toolControls = (

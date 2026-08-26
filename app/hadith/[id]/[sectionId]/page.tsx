@@ -9,7 +9,6 @@ import {
   isHadithSectionPregenerated,
   loadBothLangs,
 } from '@/lib/ssg'
-import { translateEnToRuManyForBuild } from '@/lib/translateEnRuBuildCache'
 import { clipDescription, pageAlternates, pageTitle } from '@/lib/site'
 
 /** First visit builds HTML; then cached (ISR). Avoids huge Vercel builds. */
@@ -72,8 +71,9 @@ export default async function HadithSectionPage({
             title: sec?.name ?? sectionId,
           }
           if (!pregenerated) return base
+          // Shell only — no blocking EN→RU MT on the request path.
           const hadiths = await fetchHadithSection(book.id, sectionId, lang, {
-            translateBatch: translateEnToRuManyForBuild,
+            machineTranslate: false,
           })
           return { ...base, hadiths }
         } catch {

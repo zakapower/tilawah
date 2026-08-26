@@ -51,6 +51,7 @@ type QuranAudioApi = {
   setReciter: (id: number) => void
   ensureWords: (chapter: number) => void
   retry: () => void
+  registerProgressEl: (el: HTMLElement | null) => void
 }
 
 const QuranAudioContext = createContext<QuranAudioApi | null>(null)
@@ -125,6 +126,8 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
   const ignoreErrorRef = useRef(false)
   const finishingRef = useRef(false)
   const syncLockRef = useRef(0)
+  const progressElRef = useRef<HTMLElement | null>(null)
+  const progressValueRef = useRef(0)
 
   const [visible, setVisible] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -140,6 +143,28 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
   )
   const [wordsChapter, setWordsChapter] = useState<number | null>(null)
   const [hydrated, setHydrated] = useState(false)
+
+  const paintProgress = useCallback((p: number) => {
+    const next = Math.min(1, Math.max(0, p))
+    progressValueRef.current = next
+    progressElRef.current?.style.setProperty('--p', String(next))
+  }, [])
+
+  const commitProgress = useCallback(
+    (p: number) => {
+      paintProgress(p)
+      setProgress(p)
+    },
+    [paintProgress],
+  )
+
+  const registerProgressEl = useCallback(
+    (el: HTMLElement | null) => {
+      progressElRef.current = el
+      if (el) el.style.setProperty('--p', String(progressValueRef.current))
+    },
+    [],
+  )
 
   useEffect(() => {
     const saved = readReciterId(DEFAULT_RECITER_ID)
@@ -161,10 +186,10 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
     setPlaying(false)
     setVisible(false)
     setActiveWordIndex(null)
-    setProgress(0)
+    commitProgress(0)
     setError(null)
     setLoading(false)
-  }, [])
+  }, [commitProgress])
 
   useEffect(() => {
     if (!visible || surah == null) return
@@ -182,12 +207,12 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current
     if (audio && !audio.paused) audio.pause()
     setPlaying(false)
-    setProgress(1)
+    commitProgress(1)
     setActiveWordIndex(null)
     window.setTimeout(() => {
       finishingRef.current = false
     }, 200)
-  }, [])
+  }, [commitProgress])
 
   const playAyah = useCallback(async (ayahNumber: number, autoplay: boolean) => {
     const audio = audioRef.current
@@ -205,7 +230,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
     }
     setAyah(row.ayah)
     setActiveWordIndex(null)
-    setProgress(0)
+    commitProgress(0)
     finishingRef.current = false
     scrollAyahIntoView(row.ayah)
 
@@ -261,7 +286,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
       ignoreErrorRef.current = false
       syncLockRef.current = Math.max(0, syncLockRef.current - 1)
     }
-  }, [])
+  }, [commitProgress])
 
   const ensureWords = useCallback((chapter: number) => {
     if (!Number.isFinite(chapter) || chapter < 1 || chapter > 114) return
@@ -451,7 +476,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
 
       const span = row.toMs - row.fromMs
       if (span > 0) {
-        setProgress(Math.min(1, Math.max(0, (tMs - row.fromMs) / span)))
+        paintProgress((tMs - row.fromMs) / span)
       }
 
       const last = timestamps[timestamps.length - 1]
@@ -475,6 +500,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
       setPlaying(false)
       cancelAnimationFrame(raf)
       syncFromClock()
+      setProgress(progressValueRef.current)
     }
     const onEnded = () => {
       finishSurah()
@@ -500,7 +526,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
       audio.removeEventListener('ended', onEnded)
       audio.removeEventListener('error', onError)
     }
-  }, [finishSurah])
+  }, [finishSurah, paintProgress])
 
   const value = useMemo<QuranAudioApi>(
     () => ({
@@ -524,6 +550,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
       setReciter,
       ensureWords,
       retry,
+      registerProgressEl,
     }),
     [
       visible,
@@ -547,6 +574,7 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
       setReciter,
       ensureWords,
       retry,
+      registerProgressEl,
     ],
   )
 

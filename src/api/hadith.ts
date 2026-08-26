@@ -303,7 +303,7 @@ const sectionInflight = new Map<string, Promise<HadithItem[]>>()
 /** Limit parallel CDN prefetches so chapter opens stay snappy. */
 const warmQueue: Array<() => Promise<unknown>> = []
 let warmRunning = 0
-const WARM_CONCURRENCY = 5
+const WARM_CONCURRENCY = 3
 
 function drainWarmQueue() {
   while (warmRunning < WARM_CONCURRENCY && warmQueue.length > 0) {
@@ -608,20 +608,49 @@ export function prefetchHadithBookSections(
   bookId: string,
   lang: Lang,
   sectionIds: string[],
-  count = 6,
+  count = 8,
 ) {
   for (const [i, id] of sectionIds.slice(0, count).entries()) {
     warmHadithSectionPair(bookId, id, lang, { mt: lang === 'ru' && i === 0 })
   }
 }
 
-/** Idle batch: warm CDN shells for many chapters without blocking UI. */
+/**
+ * Idle batch: warm a bounded set of CDN shells (focus chapter first).
+ * Avoid stampeding all ~100 Bukhari chapters at once.
+ */
 export function warmHadithBookSectionsIdle(
   bookId: string,
   lang: Lang,
   sectionIds: string[],
+  options?: { focusId?: string | null; max?: number },
 ) {
-  for (const id of sectionIds) {
+  const max = options?.max ?? 14
+  const focusId = options?.focusId ?? null
+  const ordered: string[] = []
+  const seen = new Set<string>()
+  const push = (id: string | undefined) => {
+    if (!id || seen.has(id)) return
+    seen.add(id)
+    ordered.push(id)
+  }
+
+  if (focusId) {
+    const idx = sectionIds.indexOf(focusId)
+    if (idx >= 0) {
+      for (let d = 0; d < sectionIds.length; d += 1) {
+        if (idx - d >= 0) push(sectionIds[idx - d])
+        if (d > 0 && idx + d < sectionIds.length) push(sectionIds[idx + d])
+      }
+    }
+  }
+  for (const id of sectionIds) push(id)
+
+  let queued = 0
+  for (const id of ordered) {
+    if (queued >= max) break
+    if (sectionCached(bookId, id, lang)) continue
     warmHadithSectionPair(bookId, id, lang)
+    queued += 1
   }
 }

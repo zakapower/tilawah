@@ -45,19 +45,20 @@ export function QuranPlayerBar() {
     reciterId,
     surah,
     ayah,
-    progress,
     togglePause,
     close,
     nextAyah,
     prevAyah,
     setReciter,
     retry,
+    registerProgressEl,
   } = useQuranAudio()
 
   const [reciterOpen, setReciterOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const reciterRef = useRef<HTMLDivElement>(null)
   const sheetCloseRef = useRef<HTMLButtonElement>(null)
+  const progressRef = useRef<HTMLDivElement>(null)
   const listId = useId()
   const sheetId = useId()
   const current = getReciter(reciterId)
@@ -103,6 +104,11 @@ export function QuranPlayerBar() {
     }
   }, [sheetOpen])
 
+  useEffect(() => {
+    registerProgressEl(visible ? progressRef.current : null)
+    return () => registerProgressEl(null)
+  }, [visible, loading, registerProgressEl])
+
   if (!visible) return null
 
   const errorBlock = error ? (
@@ -129,10 +135,8 @@ export function QuranPlayerBar() {
         aria-label={t('Плеер Корана', 'Qur’an player')}
       >
         <div
+          ref={progressRef}
           className="quran-player__progress"
-          style={
-            loading ? undefined : { ['--p' as string]: String(progress) }
-          }
           aria-hidden="true"
         />
 

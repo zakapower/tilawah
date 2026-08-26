@@ -30,7 +30,9 @@ export function HadithListView() {
           <li key={b.id} id={`hadith-book-${b.id}`}>
             <Link
               href={`/hadith/${b.id}`}
+              prefetch={false}
               onPointerEnter={() => prefetchHadithBook(b.id, lang)}
+              onPointerDown={() => prefetchHadithBook(b.id, lang)}
               onClick={() => {
                 saveListScroll('/hadith')
                 saveLastHadith(b.id)

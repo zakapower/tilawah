@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { prefetchSurah } from '@/api/quran'
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
 import { fetchSurah, peekSurah, prefetchNearbySurahs, seedSurah, warmSurahBothLangs } from '@/api/quran'
@@ -17,6 +17,13 @@ import { useApp } from '@/context/AppContext'
 import { useQuranAudio } from '@/context/QuranAudioContext'
 import './Reader.css'
 
+/** Survives SurahView remount when /quran/N:a-b → /quran/N. */
+let pendingShowAllAnchor: {
+  surah: number
+  ayah: number
+  top: number
+} | null = null
+
 /** Map Quran.com karaoke word index onto locally displayed word tokens. */
 function mapKaraokeWordIndex(
   qcIndex: number | null,
@@ -29,33 +36,6 @@ function mapKaraokeWordIndex(
     displayLen,
     Math.max(1, Math.round((qcIndex * displayLen) / qcLen)),
   )
-}
-
-async function writeClipboard(text: string) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return
-    }
-  } catch {
-    /* fall through to legacy copy */
-  }
-  const ta = document.createElement('textarea')
-  ta.value = text
-  ta.setAttribute('readonly', '')
-  ta.style.position = 'fixed'
-  ta.style.opacity = '0'
-  document.body.appendChild(ta)
-  ta.select()
-  const ok = document.execCommand('copy')
-  document.body.removeChild(ta)
-  if (!ok) throw new Error('copy failed')
-}
-
-function rangeList(from: number, to: number) {
-  const list: number[] = []
-  for (let i = from; i <= to; i++) list.push(i)
-  return list
 }
 
 function SurahNav({
@@ -162,6 +142,7 @@ export function SurahView({
   initialByLang?: Partial<Record<'ru' | 'en', SurahContent>>
 } = {}) {
   const params = useParams<{ ref: string }>()
+  const router = useRouter()
   const { lang, t } = useApp()
   const audio = useQuranAudio()
   const pathRef = useMemo(
@@ -178,12 +159,6 @@ export function SurahView({
   const [error, setError] = useState<string | null>(() =>
     Number.isFinite(n) && n >= 1 && n <= 114 ? null : 'missing',
   )
-  const [selected, setSelected] = useState<number[]>([])
-  const [copied, setCopied] = useState(false)
-  const [barMounted, setBarMounted] = useState(false)
-  const [barExiting, setBarExiting] = useState(false)
-  const barCountRef = useRef(0)
-  const seededKeyRef = useRef<string | null>(null)
   const didScrollRef = useRef<string | null>(null)
 
   // Sync swap on lang change before paint — avoid waiting for useEffect.
@@ -214,7 +189,7 @@ export function SurahView({
       : surah.englishNameTranslation
     : null
 
-  const urlHighlight = useMemo(() => {
+  const urlRange = useMemo(() => {
     if (!pathRef || pathRef.from == null || pathRef.to == null || !surah) {
       return null
     }
@@ -225,17 +200,15 @@ export function SurahView({
     return { from, to }
   }, [pathRef, surah])
 
-  useEffect(() => {
-    const key = String(params.ref ?? '')
-    if (!surah || !pathRef || pathRef.surah !== surah.number) return
-    if (seededKeyRef.current === key) return
-    seededKeyRef.current = key
-    if (urlHighlight) {
-      setSelected(rangeList(urlHighlight.from, urlHighlight.to))
-    } else {
-      setSelected([])
-    }
-  }, [params.ref, pathRef, surah, urlHighlight])
+  const ayahItems = useMemo(() => {
+    if (!surah) return []
+    const rows = surah.ayahsArabic.map((a, i) => ({ a, i }))
+    if (!urlRange) return rows
+    return rows.filter(
+      ({ a }) =>
+        a.numberInSurah >= urlRange.from && a.numberInSurah <= urlRange.to,
+    )
+  }, [surah, urlRange])
 
   useEffect(() => {
     if (!Number.isFinite(n) || n < 1 || n > 114) {
@@ -272,292 +245,217 @@ export function SurahView({
   }, [n, lang, initialByLang])
 
   useEffect(() => {
-    if (!surah || selected.length === 0) return
+    if (!surah || !urlRange) return
     const key = String(params.ref ?? '')
     if (didScrollRef.current === key) return
-    if (!urlHighlight) return
-    const el = document.getElementById(`a${urlHighlight.from}`)
-    if (!el) return
     didScrollRef.current = key
-    const id = window.setTimeout(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 80)
-    return () => window.clearTimeout(id)
-  }, [surah, selected.length, params.ref, urlHighlight])
+    window.scrollTo(0, 0)
+  }, [surah, params.ref, urlRange])
 
-  useReaderScrollMemory(readerPath, Boolean(surah), Boolean(urlHighlight))
+  useReaderScrollMemory(readerPath, Boolean(surah), Boolean(urlRange))
+
+  useLayoutEffect(() => {
+    const pending = pendingShowAllAnchor
+    if (!pending || pending.surah !== n || urlRange) return
+    const el = document.getElementById(`a${pending.ayah}`)
+    if (!el) return
+    pendingShowAllAnchor = null
+    window.scrollBy(0, el.getBoundingClientRect().top - pending.top)
+  }, [urlRange, ayahItems.length, n])
+
+  const showAllAyahs = useCallback(() => {
+    if (!urlRange || !Number.isFinite(n)) return
+    const el = document.getElementById(`a${urlRange.from}`)
+    pendingShowAllAnchor = {
+      surah: n,
+      ayah: urlRange.from,
+      top: el?.getBoundingClientRect().top ?? 0,
+    }
+    router.replace(`/quran/${n}`, { scroll: false })
+  }, [n, router, urlRange])
 
   useEffect(() => {
     if (!Number.isFinite(n) || n < 1 || n > 114) return
     audio.ensureWords(n)
   }, [n, audio.ensureWords])
 
-  useEffect(() => {
-    if (!copied) return
-    const id = window.setTimeout(() => setCopied(false), 1600)
-    return () => window.clearTimeout(id)
-  }, [copied])
-
-  const selectOpen = selected.length > 0
-  if (selectOpen) barCountRef.current = selected.length
-
-  useEffect(() => {
-    if (selectOpen) {
-      setBarMounted(true)
-      setBarExiting(false)
-      return
-    }
-    if (!barMounted) return
-    const reduced =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) {
-      setBarMounted(false)
-      setBarExiting(false)
-      return
-    }
-    setBarExiting(true)
-  }, [selectOpen, barMounted])
-
-  const toggleAyah = useCallback((ayah: number) => {
-    setSelected((prev) =>
-      prev.includes(ayah) ? prev.filter((x) => x !== ayah) : [...prev, ayah],
-    )
-  }, [])
-
-  const clearSelection = useCallback(() => {
-    setSelected([])
-  }, [])
-
-  const copySelection = useCallback(async () => {
-    if (!surah || selected.length === 0) return
-    const label = lang === 'ru' ? 'Коран' : 'Qur’an'
-    const sorted = [...selected].sort((a, b) => a - b)
-    const text = sorted
-      .map((ayah) => {
-        const body = (surah.ayahsTranslation[ayah - 1]?.text ?? '').trim()
-        return `${label} ${surah.number}:${ayah}\n${body}`
-      })
-      .join('\n\n')
-    try {
-      await writeClipboard(text)
-      setCopied(true)
-    } catch {
-      setCopied(false)
-    }
-  }, [lang, selected, surah])
-
   const playerOpen = audio.visible && audio.surah === n
   const chapterWords =
     audio.wordsChapter === n ? audio.wordsByAyah : null
-  const selectedSet = useMemo(() => new Set(selected), [selected])
-  const barCount = selectOpen ? selected.length : barCountRef.current
 
   const readerCls = [
     'reader',
     playerOpen ? 'reader--player-open' : '',
-    selectOpen ? 'reader--select-open' : '',
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <>
-      <div className={readerCls}>
-        <nav className="reader__crumb">
-          <Link href="/quran">{t('Коран', 'Qur’an')}</Link>
-          <span aria-hidden="true">/</span>
-          <span>{title ?? '…'}</span>
-        </nav>
+    <div className={readerCls}>
+      <nav className="reader__crumb">
+        <Link href="/quran">{t('Коран', 'Qur’an')}</Link>
+        <span aria-hidden="true">/</span>
+        <span>{title ?? '…'}</span>
+      </nav>
 
-        {error && (
-          <p className="reader__status">
-            {error === 'missing'
-              ? t('Сура не найдена', 'Surah not found')
-              : t('Не удалось загрузить суру', 'Could not load surah')}
-          </p>
-        )}
-        {!surah && !error && (
-          <ReaderSkeleton variant="surah" number={n} />
-        )}
-
-        {surah && title && (
-          <>
-            <header className="reader__head">
-              <p className="reader__ar-title" dir="rtl" lang="ar">
-                {surah.name}
-              </p>
-              <h1>{title}</h1>
-              {meaning && <p className="reader__sub">{meaning}</p>}
-            </header>
-
-            <SurahNav n={n} top lang={lang} />
-
-            <div className="ayah-list">
-              {surah.ayahsArabic.map((a, i) => {
-                const hit = selectedSet.has(a.numberInSurah)
-                const playing =
-                  audio.visible &&
-                  audio.surah === surah.number &&
-                  audio.ayah === a.numberInSurah
-                const ayahLive = playing && audio.playing
-                const displayWords = a.text.trim().split(/\s+/).filter(Boolean)
-                const qcWords = chapterWords?.get(a.numberInSurah)
-                const activeWord = playing
-                  ? mapKaraokeWordIndex(
-                      audio.activeWordIndex,
-                      qcWords?.length ?? displayWords.length,
-                      displayWords.length,
-                    )
-                  : null
-                const cls = [
-                  'ayah',
-                  'ayah--selectable',
-                  hit ? 'ayah--hit' : '',
-                  playing ? 'ayah--playing' : '',
-                  ayahLive ? 'ayah--live' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
-
-                return (
-                  <article
-                    key={a.number}
-                    className={cls}
-                    id={`a${a.numberInSurah}`}
-                    aria-pressed={hit}
-                    onClick={(e) => {
-                      const target = e.target as HTMLElement
-                      if (target.closest('button, a')) return
-                      toggleAyah(a.numberInSurah)
-                    }}
-                  >
-                    <div className="ayah__top">
-                      <p className="ayah__n">{a.numberInSurah}</p>
-                      <div className="ayah__actions">
-                        <button
-                          type="button"
-                          className={`ayah__play${
-                            playing ? ' ayah__play--on' : ''
-                          }${ayahLive ? ' ayah__play--live' : ''}`}
-                          onClick={() => {
-                            // Pause only while this ayah is actively playing.
-                            // If paused on this ayah (or idle), start/seek via openAndPlay
-                            // so karaoke syncs from the ayah start.
-                            if (ayahLive) {
-                              audio.togglePause()
-                              return
-                            }
-                            audio.openAndPlay({
-                              surah: surah.number,
-                              ayah: a.numberInSurah,
-                            })
-                          }}
-                          aria-label={
-                            ayahLive
-                              ? t('Пауза', 'Pause')
-                              : t(
-                                  `Слушать аят ${a.numberInSurah}`,
-                                  `Play ayah ${a.numberInSurah}`,
-                                )
-                          }
-                          title={
-                            ayahLive
-                              ? t('Пауза', 'Pause')
-                              : t('Слушать', 'Play')
-                          }
-                        >
-                          {ayahLive ? (
-                            <Pause strokeWidth={2} aria-hidden="true" />
-                          ) : (
-                            <Play strokeWidth={2} aria-hidden="true" />
-                          )}
-                        </button>
-                        <FavoriteButton
-                          kind="ayah"
-                          surah={surah.number}
-                          ayah={a.numberInSurah}
-                          snippet={surah.ayahsTranslation[i]?.text ?? a.text}
-                        />
-                        <CopyAyahButton
-                          surah={surah.number}
-                          ayah={a.numberInSurah}
-                          translation={surah.ayahsTranslation[i]?.text ?? ''}
-                        />
-                      </div>
-                    </div>
-                    <p className="ayah__ar" dir="rtl" lang="ar">
-                      {displayWords.map((w, wi) => {
-                        const idx = wi + 1
-                        const active = activeWord === idx
-                        return (
-                          <span key={`${a.numberInSurah}-${idx}`}>
-                            {wi > 0 ? ' ' : null}
-                            <span
-                              className={
-                                active
-                                  ? 'ayah__word ayah__word--active'
-                                  : 'ayah__word'
-                              }
-                            >
-                              {w}
-                            </span>
-                          </span>
-                        )
-                      })}
-                    </p>
-                    <p className="ayah__tr">{surah.ayahsTranslation[i]?.text}</p>
-                  </article>
-                )
-              })}
-            </div>
-
-            <SurahNav n={n} lang={lang} />
-          </>
-        )}
-      </div>
-
-      {/* Outside .reader: its animation transform breaks position:fixed */}
-      {barMounted && (
-        <div
-          className={[
-            'ayah-select-bar',
-            playerOpen ? 'ayah-select-bar--above-player' : '',
-            barExiting ? 'ayah-select-bar--out' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          role="toolbar"
-          aria-label={t('Выбранные аяты', 'Selected ayahs')}
-          aria-hidden={barExiting}
-          onAnimationEnd={(e) => {
-            if (e.animationName !== 'ayah-select-out') return
-            setBarMounted(false)
-            setBarExiting(false)
-          }}
-        >
-          <button
-            type="button"
-            className="ayah-select-bar__btn ayah-select-bar__btn--ghost"
-            onClick={clearSelection}
-            disabled={barExiting}
-          >
-            {t('Снять', 'Clear')}
-          </button>
-          <button
-            type="button"
-            className={`ayah-select-bar__btn ayah-select-bar__btn--primary${
-              copied ? ' ayah-select-bar__btn--done' : ''
-            }`}
-            onClick={() => void copySelection()}
-            disabled={barExiting}
-          >
-            {copied
-              ? t('Скопировано', 'Copied')
-              : t(`Копировать (${barCount})`, `Copy (${barCount})`)}
-          </button>
-        </div>
+      {error && (
+        <p className="reader__status">
+          {error === 'missing'
+            ? t('Сура не найдена', 'Surah not found')
+            : t('Не удалось загрузить суру', 'Could not load surah')}
+        </p>
       )}
-    </>
+      {!surah && !error && (
+        <ReaderSkeleton variant="surah" number={n} />
+      )}
+
+      {surah && title && (
+        <>
+          <header className="reader__head">
+            <p className="reader__ar-title" dir="rtl" lang="ar">
+              {surah.name}
+            </p>
+            <h1>{title}</h1>
+            {meaning && <p className="reader__sub">{meaning}</p>}
+            {urlRange && (
+              <p className="reader__sub reader__sub--ayah">
+                {urlRange.from === urlRange.to
+                  ? t(`Аят ${urlRange.from}`, `Ayah ${urlRange.from}`)
+                  : t(
+                      `Аяты ${urlRange.from}–${urlRange.to}`,
+                      `Ayahs ${urlRange.from}–${urlRange.to}`,
+                    )}
+              </p>
+            )}
+          </header>
+
+          <SurahNav n={n} top lang={lang} />
+
+          <div className="ayah-list">
+            {ayahItems.map(({ a, i }) => {
+              const playing =
+                audio.visible &&
+                audio.surah === surah.number &&
+                audio.ayah === a.numberInSurah
+              const ayahLive = playing && audio.playing
+              const displayWords = a.text.trim().split(/\s+/).filter(Boolean)
+              const qcWords = chapterWords?.get(a.numberInSurah)
+              const activeWord = playing
+                ? mapKaraokeWordIndex(
+                    audio.activeWordIndex,
+                    qcWords?.length ?? displayWords.length,
+                    displayWords.length,
+                  )
+                : null
+              const cls = [
+                'ayah',
+                playing ? 'ayah--playing' : '',
+                ayahLive ? 'ayah--live' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+
+              return (
+                <article
+                  key={a.number}
+                  className={cls}
+                  id={`a${a.numberInSurah}`}
+                >
+                  <div className="ayah__top">
+                    <p className="ayah__n">{a.numberInSurah}</p>
+                    <div className="ayah__actions">
+                      <button
+                        type="button"
+                        className={`ayah__play${
+                          playing ? ' ayah__play--on' : ''
+                        }${ayahLive ? ' ayah__play--live' : ''}`}
+                        onClick={() => {
+                          // Pause only while this ayah is actively playing.
+                          // If paused on this ayah (or idle), start/seek via openAndPlay
+                          // so karaoke syncs from the ayah start.
+                          if (ayahLive) {
+                            audio.togglePause()
+                            return
+                          }
+                          audio.openAndPlay({
+                            surah: surah.number,
+                            ayah: a.numberInSurah,
+                          })
+                        }}
+                        aria-label={
+                          ayahLive
+                            ? t('Пауза', 'Pause')
+                            : t(
+                                `Слушать аят ${a.numberInSurah}`,
+                                `Play ayah ${a.numberInSurah}`,
+                              )
+                        }
+                        title={
+                          ayahLive
+                            ? t('Пауза', 'Pause')
+                            : t('Слушать', 'Play')
+                        }
+                      >
+                        {ayahLive ? (
+                          <Pause strokeWidth={2} aria-hidden="true" />
+                        ) : (
+                          <Play strokeWidth={2} aria-hidden="true" />
+                        )}
+                      </button>
+                      <FavoriteButton
+                        kind="ayah"
+                        surah={surah.number}
+                        ayah={a.numberInSurah}
+                        snippet={surah.ayahsTranslation[i]?.text ?? a.text}
+                      />
+                      <CopyAyahButton
+                        surah={surah.number}
+                        ayah={a.numberInSurah}
+                        translation={surah.ayahsTranslation[i]?.text ?? ''}
+                      />
+                    </div>
+                  </div>
+                  <p className="ayah__ar" dir="rtl" lang="ar">
+                    {displayWords.map((w, wi) => {
+                      const idx = wi + 1
+                      const active = activeWord === idx
+                      return (
+                        <span key={`${a.numberInSurah}-${idx}`}>
+                          {wi > 0 ? ' ' : null}
+                          <span
+                            className={
+                              active
+                                ? 'ayah__word ayah__word--active'
+                                : 'ayah__word'
+                            }
+                          >
+                            {w}
+                          </span>
+                        </span>
+                      )
+                    })}
+                  </p>
+                  <p className="ayah__tr">{surah.ayahsTranslation[i]?.text}</p>
+                </article>
+              )
+            })}
+          </div>
+
+          {urlRange && (
+            <div className="reader__show-all">
+              <button
+                type="button"
+                className="reader__show-all-btn"
+                onClick={showAllAyahs}
+              >
+                {t('Показать все аяты', 'Show all ayahs')}
+              </button>
+            </div>
+          )}
+
+          <SurahNav n={n} lang={lang} />
+        </>
+      )}
+    </div>
   )
 }

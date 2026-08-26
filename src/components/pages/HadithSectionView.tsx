@@ -136,7 +136,9 @@ function HadithSectionNav({
         <Link
           className="reader__nav-btn"
           href={`/hadith/${bookId}/${prevId}`}
+          prefetch={false}
           onPointerEnter={() => prefetchHadithSection(bookId, prevId, lang)}
+          onPointerDown={() => prefetchHadithSection(bookId, prevId, lang)}
           aria-label={t('Предыдущая глава', 'Previous chapter')}
           title={t('Предыдущая глава', 'Previous chapter')}
         >
@@ -152,7 +154,9 @@ function HadithSectionNav({
         <Link
           className="reader__nav-btn"
           href={`/hadith/${bookId}/${nextId}`}
+          prefetch={false}
           onPointerEnter={() => prefetchHadithSection(bookId, nextId, lang)}
+          onPointerDown={() => prefetchHadithSection(bookId, nextId, lang)}
           aria-label={t('Следующая глава', 'Next chapter')}
           title={t('Следующая глава', 'Next chapter')}
         >
