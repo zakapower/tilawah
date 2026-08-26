@@ -8,7 +8,7 @@ export const SSG_REVALIDATE_SECONDS = 86400
 export const HADITH_SECTION_PREFETCH = 12
 
 export function quranStaticParams() {
-  return Array.from({ length: 114 }, (_, i) => ({ number: String(i + 1) }))
+  return Array.from({ length: 114 }, (_, i) => ({ ref: String(i + 1) }))
 }
 
 export function hadithBookStaticParams() {

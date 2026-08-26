@@ -4,6 +4,12 @@ export type AyahRef = {
   to: number
 }
 
+export type SurahPathRef = {
+  surah: number
+  from: number | null
+  to: number | null
+}
+
 /** Разбор «2:2» или «2:2-6». */
 export function parseAyahRef(input: string): AyahRef | null {
   const m = input
@@ -24,6 +30,21 @@ export function parseAyahRef(input: string): AyahRef | null {
   return { surah, from, to }
 }
 
+/** Разбор сегмента пути: «23», «23:2», «23:2-6». */
+export function parseSurahPathRef(input: string): SurahPathRef | null {
+  const raw = decodeURIComponent(input.trim())
+  const onlySurah = raw.match(/^(\d{1,3})$/)
+  if (onlySurah) {
+    const surah = Number(onlySurah[1])
+    if (!Number.isFinite(surah) || surah < 1 || surah > 114) return null
+    return { surah, from: null, to: null }
+  }
+
+  const ayah = parseAyahRef(raw)
+  if (!ayah) return null
+  return { surah: ayah.surah, from: ayah.from, to: ayah.to }
+}
+
 export function formatAyahRef(ref: AyahRef) {
   return ref.from === ref.to
     ? `${ref.surah}:${ref.from}`
@@ -31,20 +52,13 @@ export function formatAyahRef(ref: AyahRef) {
 }
 
 export function ayahRefPath(ref: AyahRef) {
-  const a = ref.from === ref.to ? String(ref.from) : `${ref.from}-${ref.to}`
-  return `/quran/${ref.surah}?a=${a}`
+  return `/quran/${formatAyahRef(ref)}`
 }
 
-/** Параметр ?a=2 или ?a=2-6 */
-export function parseAyahParam(value: string | null): { from: number; to: number } | null {
-  if (!value) return null
-  const m = value.trim().match(/^(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?$/)
-  if (!m) return null
-  let from = Number(m[1])
-  let to = m[2] ? Number(m[2]) : from
-  if (!Number.isFinite(from) || !Number.isFinite(to) || from < 1 || to < 1) {
-    return null
-  }
-  if (to < from) [from, to] = [to, from]
-  return { from, to }
+export function surahPath(surah: number) {
+  return `/quran/${surah}`
+}
+
+export function isQuranSurahPath(pathname: string, surah: number) {
+  return pathname === `/quran/${surah}` || pathname.startsWith(`/quran/${surah}:`)
 }

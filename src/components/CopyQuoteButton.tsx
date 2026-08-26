@@ -10,9 +10,13 @@ type Props = {
 }
 
 async function writeClipboard(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return
+    }
+  } catch {
+    /* fall through to legacy copy */
   }
   const ta = document.createElement('textarea')
   ta.value = text
@@ -21,8 +25,9 @@ async function writeClipboard(text: string) {
   ta.style.opacity = '0'
   document.body.appendChild(ta)
   ta.select()
-  document.execCommand('copy')
+  const ok = document.execCommand('copy')
   document.body.removeChild(ta)
+  if (!ok) throw new Error('copy failed')
 }
 
 export function CopyQuoteButton({ heading, body, label }: Props) {

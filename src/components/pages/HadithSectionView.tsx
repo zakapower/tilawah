@@ -214,9 +214,25 @@ export function HadithSectionView({
   const [hadiths, setHadiths] = useState<HadithItem[] | null>(
     started?.hadiths ?? null,
   )
+  const [contentLang, setContentLang] = useState(lang)
   const partialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hadithsRef = useRef<HadithItem[] | null>(started?.hadiths ?? null)
   hadithsRef.current = hadiths
+
+  // Sync swap on lang change before paint.
+  if (lang !== contentLang && book && sectionId) {
+    setContentLang(lang)
+    const init = initialByLang?.[lang]
+    const secs = init?.sections ?? peekHadithSections(book.id, lang)
+    const items =
+      init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
+    if (secs) {
+      const sec = secs.find((s) => s.id === sectionId)
+      setSections(secs)
+      setTitle(init?.title ?? sec?.name ?? sectionId)
+    }
+    if (items) setHadiths(items)
+  }
   const schedulePartialHadiths = useCallback((items: HadithItem[]) => {
     if (partialTimerRef.current) clearTimeout(partialTimerRef.current)
     // First shell paint: no debounce; later MT chunks: short debounce.
@@ -328,7 +344,8 @@ export function HadithSectionView({
       if (init?.hadiths) {
         seedHadithSection(book.id, sectionId, lang, init.hadiths)
       }
-    } else {
+    } else if (!cachedSecs) {
+      // Only blank when we have nothing for this chapter yet.
       setHadiths(null)
     }
 

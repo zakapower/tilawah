@@ -168,7 +168,12 @@ export function QuranAudioProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!visible || surah == null) return
-    if (pathname !== `/quran/${surah}`) close()
+    if (
+      pathname !== `/quran/${surah}` &&
+      !pathname.startsWith(`/quran/${surah}:`)
+    ) {
+      close()
+    }
   }, [pathname, surah, visible, close])
 
   const finishSurah = useCallback(() => {

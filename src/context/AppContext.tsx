@@ -101,20 +101,10 @@ function scheduleRouterRefresh(router: { refresh: () => void }) {
     run()
     return
   }
-  // Let the client lang switch paint first; sync RSC when idle.
-  const ric = (
-    window as Window & {
-      requestIdleCallback?: (
-        cb: () => void,
-        opts?: { timeout: number },
-      ) => number
-    }
-  ).requestIdleCallback
-  if (typeof ric === 'function') {
-    ric(run, { timeout: 1200 })
-  } else {
-    window.setTimeout(run, 80)
-  }
+  // Paint client lang first, then sync RSC on the next frames.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(run)
+  })
 }
 
 export function AppProvider({
