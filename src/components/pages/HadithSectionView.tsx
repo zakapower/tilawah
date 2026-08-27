@@ -35,7 +35,6 @@ const HadithCard = memo(function HadithCard({
   bookTitle,
   sectionId,
   lang,
-  hit,
   t,
 }: {
   h: HadithItem
@@ -43,7 +42,6 @@ const HadithCard = memo(function HadithCard({
   bookTitle: string
   sectionId: string
   lang: 'ru' | 'en'
-  hit: boolean
   t: (ru: string, en: string) => string
 }) {
   const translation = h.text || ''
@@ -51,10 +49,7 @@ const HadithCard = memo(function HadithCard({
   const copyBody = translation || arabic
 
   return (
-    <article
-      className={hit ? 'ayah ayah--hit ayah--hadith' : 'ayah ayah--hadith'}
-      id={h.id}
-    >
+    <article className="ayah ayah--hadith" id={h.id}>
       <div className="ayah__top">
         <p className="ayah__n">
           {Number.isInteger(h.number) ? h.number : String(h.number)}
@@ -404,7 +399,8 @@ export function HadithSectionView({
     const el = document.getElementById(`${book.id}-${highlight}`)
     if (!el) return
     const id = window.setTimeout(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // start + scroll-margin — show number/beginning, not the middle of long hadiths
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 80)
     return () => window.clearTimeout(id)
   }, [hadiths, highlight, book])
@@ -500,7 +496,6 @@ export function HadithSectionView({
                 bookTitle={book.title[lang]}
                 sectionId={sectionId}
                 lang={lang}
-                hit={highlight === h.number}
                 t={t}
               />
             ))}
