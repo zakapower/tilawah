@@ -6,7 +6,6 @@ import { getHadithCollection } from '@/data/hadithCatalog'
 import { getRequestLang } from '@/lib/request-lang'
 import {
   hadithSectionStaticParams,
-  isHadithSectionPregenerated,
   loadBothLangs,
 } from '@/lib/ssg'
 import { clipDescription, pageAlternates, pageTitle } from '@/lib/site'
@@ -58,9 +57,6 @@ export default async function HadithSectionPage({
     title: string
   }
 
-  const pregenerated =
-    book && isHadithSectionPregenerated(book.apiBook, sectionId)
-
   const initialByLang = book
     ? await loadBothLangs(async (lang): Promise<Pack | null> => {
         try {
@@ -70,8 +66,6 @@ export default async function HadithSectionPage({
             sections,
             title: sec?.name ?? sectionId,
           }
-          if (!pregenerated) return base
-          // Shell only — no blocking EN→RU MT on the request path.
           const hadiths = await fetchHadithSection(book.id, sectionId, lang, {
             machineTranslate: false,
           })

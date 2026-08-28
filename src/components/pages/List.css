@@ -5,6 +5,30 @@
   animation: in 0.45s ease both;
 }
 
+.list-page__intro {
+  max-width: var(--max);
+  margin: 0 auto;
+}
+
+.list-page__intro .list-page__head h1,
+.list-page__intro .list-page__head > p,
+.list-page__head--center h1,
+.list-page__head--center > p {
+  text-align: center;
+}
+
+.list-page--intro-only {
+  padding-bottom: 0;
+}
+
+.home-surahs.quran-surahs {
+  padding-top: 0;
+}
+
+.home-surahs.quran-surahs .card-list {
+  margin-top: 1rem;
+}
+
 .list-page__head h1 {
   margin: 0 0 0.5rem;
   font-family: var(--font-display);
@@ -231,6 +255,12 @@
 
   .card-list li a:hover .card-list__body strong {
     color: inherit;
+  }
+}
+
+@media (min-width: 640px) {
+  .card-list--cols-2 {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

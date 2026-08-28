@@ -11,9 +11,11 @@ import {
   formatAyahRef,
   parseAyahRef,
 } from '@/utils/ayahRef'
+import { filterSurahs } from '@/utils/surahSearch'
 import { useRestoreListScroll } from '@/hooks/useRestoreListScroll'
 import { saveLastSurah, saveListScroll } from '@/utils/scrollMemory'
 import { useApp } from '@/context/AppContext'
+import './Home.css'
 import './List.css'
 
 export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
@@ -44,135 +46,143 @@ export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
 
   const filtered = useMemo(() => {
     if (ayahTarget) return []
-    const q = query.trim().toLowerCase()
-    if (!q) return surahs
-    return surahs.filter((s) => {
-      const ruName = surahTitleRu(s.number, '').toLowerCase()
-      const ruMeaning = surahMeaningRu(s.number, '').toLowerCase()
-      return (
-        String(s.number).includes(q) ||
-        s.englishName.toLowerCase().includes(q) ||
-        s.englishNameTranslation.toLowerCase().includes(q) ||
-        ruName.includes(q) ||
-        ruMeaning.includes(q) ||
-        s.name.includes(query.trim())
-      )
-    })
+    return filterSurahs(surahs, query)
   }, [surahs, query, ayahTarget])
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault()
-    if (ayahTarget) router.push(ayahRefPath(ayahTarget.ref))
+    if (ayahTarget) {
+      router.push(ayahRefPath(ayahTarget.ref))
+      return
+    }
+    if (filtered.length === 1) {
+      router.push(`/quran/${filtered[0].number}`)
+    }
   }
 
   return (
-    <div className="list-page">
-      <header className="list-page__head">
-        <h1>{t('Коран', 'Qur’an')}</h1>
-        <p>
-          {t(
-            'Сура по названию или аят: 2:2, диапазон: 2:2-6.',
-            'Surah by name, or ayah: 2:2, range: 2:2-6.',
-          )}
-        </p>
-        <form className="search" onSubmit={onSearchSubmit}>
-          <label>
-            <span className="sr-only">{t('Поиск', 'Search')}</span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t(
-                'Сура или аят, напр. 2:2-6…',
-                'Surah or ayah, e.g. 2:2-6…',
+    <>
+      <div className="list-page list-page--intro-only">
+        <div className="list-page__intro">
+          <header className="list-page__head">
+            <h1>{t('Коран', 'Qur’an')}</h1>
+            <p>
+              {t(
+                'Все суры и аяты из Священного Корана',
+                'All surahs and ayahs from the Holy Qur’an',
               )}
-              inputMode="search"
-              autoComplete="off"
-            />
-          </label>
-        </form>
-      </header>
+            </p>
+            <form className="search" onSubmit={onSearchSubmit}>
+              <label>
+                <span className="sr-only">{t('Поиск', 'Search')}</span>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t(
+                    'Поиск сур или аятов по названию или по номеру',
+                    'Search surahs or ayahs by name or number',
+                  )}
+                  inputMode="search"
+                  autoComplete="off"
+                />
+              </label>
+            </form>
+          </header>
 
-      {ayahRef && !ayahTarget && (
-        <p className="list-page__status">
-          {t(
-            'Аят не найден. Проверь номер суры и аята.',
-            'Ayah not found. Check the surah and ayah numbers.',
+          {ayahRef && !ayahTarget && (
+            <p className="list-page__status">
+              {t(
+                'Аят не найден. Проверь номер суры и аята.',
+                'Ayah not found. Check the surah and ayah numbers.',
+              )}
+            </p>
           )}
-        </p>
-      )}
 
-      {ayahTarget && (
-        <ol className="card-list">
-          <li>
-            <Link
-              className="card-list__ayah-hit"
-              href={ayahRefPath(ayahTarget.ref)}
-            >
-              <span className="card-list__n">
-                {formatAyahRef(ayahTarget.ref)}
-              </span>
-              <span className="card-list__body">
-                <strong>
-                  {lang === 'ru'
-                    ? surahTitleRu(
-                        ayahTarget.surah.number,
-                        ayahTarget.surah.englishName,
-                      )
-                    : ayahTarget.surah.englishName}
-                  <span className="card-list__ar" dir="rtl">
-                    {ayahTarget.surah.name}
+          {query.trim() && !ayahRef && filtered.length === 0 && (
+            <p className="list-page__status">
+              {t(
+                'Сура не найдена. Проверь название или номер.',
+                'Surah not found. Check the name or number.',
+              )}
+            </p>
+          )}
+
+          {ayahTarget && (
+            <ol className="card-list">
+              <li>
+                <Link
+                  className="card-list__ayah-hit"
+                  href={ayahRefPath(ayahTarget.ref)}
+                >
+                  <span className="card-list__n">
+                    {formatAyahRef(ayahTarget.ref)}
                   </span>
-                </strong>
-                <span className="card-list__meta">
-                  {ayahTarget.ref.from === ayahTarget.ref.to
-                    ? t('Перейти к аяту', 'Go to ayah')
-                    : t('Перейти к аятам', 'Go to ayahs')}
-                  {ayahTarget.clipped
-                    ? ` · ${t('до конца суры', 'to end of surah')}`
-                    : ''}
-                </span>
-              </span>
-            </Link>
-          </li>
-        </ol>
-      )}
+                  <span className="card-list__body">
+                    <strong>
+                      {lang === 'ru'
+                        ? surahTitleRu(
+                            ayahTarget.surah.number,
+                            ayahTarget.surah.englishName,
+                          )
+                        : ayahTarget.surah.englishName}
+                      <span className="card-list__ar" dir="rtl">
+                        {ayahTarget.surah.name}
+                      </span>
+                    </strong>
+                    <span className="card-list__meta">
+                      {ayahTarget.ref.from === ayahTarget.ref.to
+                        ? t('Перейти к аяту', 'Go to ayah')
+                        : t('Перейти к аятам', 'Go to ayahs')}
+                      {ayahTarget.clipped
+                        ? ` · ${t('до конца суры', 'to end of surah')}`
+                        : ''}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            </ol>
+          )}
+        </div>
+      </div>
 
       {!ayahTarget && (
-        <ol className="card-list">
-          {filtered.map((s) => (
-            <li key={s.number} id={`surah-${s.number}`}>
-              <Link
-                href={`/quran/${s.number}`}
-                onPointerEnter={() => prefetchSurah(s.number, lang)}
-                onClick={() => {
-                  saveListScroll('/quran')
-                  saveLastSurah(s.number)
-                }}
-              >
-                <span className="card-list__n">
-                  {String(s.number).padStart(2, '0')}
-                </span>
-                <span className="card-list__body">
-                  <strong>
-                    {lang === 'ru'
-                      ? surahTitleRu(s.number, s.englishName)
-                      : s.englishName}
-                    <span className="card-list__ar" dir="rtl">
-                      {s.name}
-                    </span>
-                  </strong>
-                  <span className="card-list__meta">
-                    {lang === 'ru'
-                      ? surahMeaningRu(s.number, s.englishNameTranslation)
-                      : s.englishNameTranslation}{' '}
-                    · {s.numberOfAyahs} {t('аятов', 'ayahs')}
+        <section className="home-surahs quran-surahs" aria-label={t('Суры', 'Surahs')}>
+          <ol className="card-list card-list--cols">
+            {filtered.map((s) => (
+              <li key={s.number} id={`surah-${s.number}`}>
+                <Link
+                  href={`/quran/${s.number}`}
+                  onPointerEnter={() => prefetchSurah(s.number, lang)}
+                  onClick={() => {
+                    saveListScroll('/quran')
+                    saveLastSurah(s.number)
+                  }}
+                >
+                  <span className="card-list__n">
+                    {String(s.number).padStart(2, '0')}
                   </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
+                  <span className="card-list__body">
+                    <strong>
+                      {lang === 'ru'
+                        ? surahTitleRu(s.number, s.englishName)
+                        : s.englishName}
+                      <span className="card-list__ar" dir="rtl">
+                        {s.name}
+                      </span>
+                    </strong>
+                    <span className="card-list__meta">
+                      {lang === 'ru'
+                        ? surahMeaningRu(s.number, s.englishNameTranslation)
+                        : s.englishNameTranslation}{' '}
+                      · {s.numberOfAyahs} {t('аятов', 'ayahs')}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
-    </div>
+    </>
   )
 }

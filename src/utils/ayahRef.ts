@@ -54,11 +54,3 @@ export function formatAyahRef(ref: AyahRef) {
 export function ayahRefPath(ref: AyahRef) {
   return `/quran/${formatAyahRef(ref)}`
 }
-
-export function surahPath(surah: number) {
-  return `/quran/${surah}`
-}
-
-export function isQuranSurahPath(pathname: string, surah: number) {
-  return pathname === `/quran/${surah}` || pathname.startsWith(`/quran/${surah}:`)
-}

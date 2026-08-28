@@ -71,7 +71,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var th=localStorage.getItem('qh-theme');if(th!=='dark'&&th!=='light'){th='dark'}document.documentElement.setAttribute('data-theme',th);document.documentElement.style.colorScheme=th;if(localStorage.getItem('qh-reduce-motion')==='1'){document.documentElement.setAttribute('data-reduce-motion','1')}var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;var touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;if(coarse||touch){document.documentElement.setAttribute('data-touch','1')}var mark=function(){document.documentElement.setAttribute('data-touch','1')};window.addEventListener('touchstart',mark,{once:true,passive:true});window.addEventListener('pointerdown',function(e){if(e.pointerType==='touch'||e.pointerType==='pen')mark()},{once:true,passive:true})}catch(e){}})()`,
+            __html: `(function(){try{var th=localStorage.getItem('qh-theme');if(th!=='dark'&&th!=='light'){th='dark'}document.documentElement.setAttribute('data-theme',th);document.documentElement.style.colorScheme=th;var coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;var touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;if(coarse||touch){document.documentElement.setAttribute('data-touch','1')}var mark=function(){document.documentElement.setAttribute('data-touch','1')};window.addEventListener('touchstart',mark,{once:true,passive:true});window.addEventListener('pointerdown',function(e){if(e.pointerType==='touch'||e.pointerType==='pen')mark()},{once:true,passive:true})}catch(e){}})()`,
           }}
         />
       </head>

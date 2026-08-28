@@ -227,7 +227,7 @@ html[data-touch='1'] .quran-player__btn:hover {
   color: var(--muted) !important;
 }
 
-/* User toggle or OS preference: CSS motion only */
+/* OS preference: CSS motion only */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -236,14 +236,6 @@ html[data-touch='1'] .quran-player__btn:hover {
     transition: none !important;
     scroll-behavior: auto !important;
   }
-}
-
-html[data-reduce-motion='1'] *,
-html[data-reduce-motion='1'] *::before,
-html[data-reduce-motion='1'] *::after {
-  animation: none !important;
-  transition: none !important;
-  scroll-behavior: auto !important;
 }
 
 /* Мгновенная смена палитры; анимация иконок (.ctrl__face) остаётся */

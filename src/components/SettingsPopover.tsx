@@ -23,13 +23,10 @@ export function SettingsPopover({
     setFontAr,
     setFontTr,
     resetFonts,
-    reduceMotion,
-    setReduceMotion,
   } = useApp()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
-  const motionId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -145,32 +142,6 @@ export function SettingsPopover({
           >
             {t('Сбросить', 'Reset')}
           </button>
-
-          <div className="settings__divider" role="separator" />
-
-          <h2 className="settings__title settings__title--sub">
-            {t('Производительность', 'Performance')}
-          </h2>
-          <p className="settings__hint settings__hint--tight">
-            {t(
-              'Для слабых телефонов и ПК.',
-              'For slower phones and PCs.',
-            )}
-          </p>
-
-          <label className="settings__switch" htmlFor={motionId}>
-            <span className="settings__switch-text">
-              {t('Отключить анимации', 'Disable animations')}
-            </span>
-            <input
-              id={motionId}
-              type="checkbox"
-              className="settings__switch-input"
-              checked={reduceMotion}
-              onChange={(e) => setReduceMotion(e.target.checked)}
-            />
-            <span className="settings__switch-ui" aria-hidden="true" />
-          </label>
         </div>
       )}
     </div>

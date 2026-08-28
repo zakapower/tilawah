@@ -362,14 +362,27 @@ export function HadithSectionView({
     }
 
     loads.push(
-      fetchHadithSection(book.id, sectionId, lang, {
-        onPartial: (items) => {
-          if (!cancelled) schedulePartialHadiths(items)
-        },
-      }).then((items) => {
-        if (cancelled) return
-        setHadiths(items)
-      }),
+      (async () => {
+        const shellCached = peekHadithSection(book.id, sectionId, lang)
+        if (!shellCached) {
+          await fetchHadithSection(book.id, sectionId, lang, {
+            machineTranslate: false,
+            onPartial: (items) => {
+              if (!cancelled) schedulePartialHadiths(items)
+            },
+          }).then((items) => {
+            if (!cancelled) setHadiths(items)
+          })
+        }
+
+        await fetchHadithSection(book.id, sectionId, lang, {
+          onPartial: (items) => {
+            if (!cancelled) schedulePartialHadiths(items)
+          },
+        }).then((items) => {
+          if (!cancelled) setHadiths(items)
+        })
+      })(),
     )
 
     Promise.all(loads)

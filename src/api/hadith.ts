@@ -303,7 +303,7 @@ const sectionInflight = new Map<string, Promise<HadithItem[]>>()
 /** Limit parallel CDN prefetches so chapter opens stay snappy. */
 const warmQueue: Array<() => Promise<unknown>> = []
 let warmRunning = 0
-const WARM_CONCURRENCY = 3
+const WARM_CONCURRENCY = 6
 
 function drainWarmQueue() {
   while (warmRunning < WARM_CONCURRENCY && warmQueue.length > 0) {
@@ -458,21 +458,21 @@ async function loadHadithSectionItems(
   let items: HadithItem[]
 
   if (lang === 'ru') {
-    const fetches: [
-      Promise<SectionPayload>,
-      Promise<SectionPayload>,
-      Promise<SectionPayload | null>,
-    ] = [
-      fetchJson<SectionPayload>(arUrl),
+    const arabic = await fetchJson<SectionPayload>(arUrl)
+    const arList = arabic.hadiths ?? []
+    if (arList.length > 0) {
+      const arabicOnly = mapHadiths(bookId, arList, new Map())
+      onPartial?.(arabicOnly)
+    }
+
+    const [english, russian] = await Promise.all([
       fetchJson<SectionPayload>(enUrl),
       col.editions.ru
         ? fetchJson<SectionPayload>(
             `${CDN}/editions/${col.editions.ru}/sections/${sectionId}.min.json`,
-          )
+          ).catch(() => null)
         : Promise.resolve(null),
-    ]
-    const [arabic, english, russian] = await Promise.all(fetches)
-    const arList = arabic.hadiths ?? []
+    ])
     const enRaw = textMapFromHadiths(english.hadiths ?? [])
     const enMap = resolveEnStubs(
       enRaw,
@@ -608,7 +608,7 @@ export function prefetchHadithBookSections(
   bookId: string,
   lang: Lang,
   sectionIds: string[],
-  count = 8,
+  count = 14,
 ) {
   for (const [i, id] of sectionIds.slice(0, count).entries()) {
     warmHadithSectionPair(bookId, id, lang, { mt: lang === 'ru' && i === 0 })

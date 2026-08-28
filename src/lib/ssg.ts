@@ -1,8 +1,5 @@
-import { allHadithSectionPathParams, getHadithSectionsStatic } from '@/data/hadithSectionsMeta'
+import { getHadithSectionsStatic } from '@/data/hadithSectionsMeta'
 import { hadithCollections } from '@/data/hadithCatalog'
-
-/** ISR window for on-demand hadith chapters (24 h). */
-export const SSG_REVALIDATE_SECONDS = 86400
 
 /** Prefetch early chapters per book at build time — keeps Vercel builds small. */
 export const HADITH_SECTION_PREFETCH = 12
@@ -24,21 +21,6 @@ export function hadithSectionStaticParams() {
     }
   }
   return params
-}
-
-export function isHadithSectionPregenerated(
-  apiBook: string,
-  sectionId: string,
-): boolean {
-  const sections = getHadithSectionsStatic(apiBook) ?? []
-  return sections
-    .slice(0, HADITH_SECTION_PREFETCH)
-    .some((s) => s.id === sectionId)
-}
-
-/** All hadith section paths for sitemap (static, no network). */
-export function allHadithSectionPaths() {
-  return allHadithSectionPathParams()
 }
 
 /** Load data for both languages in parallel; skips failed fetches. */

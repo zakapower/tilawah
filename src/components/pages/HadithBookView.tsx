@@ -127,6 +127,11 @@ export function HadithBookView({
     return { section, number: hadithNum }
   }, [hadithNum, sections])
 
+  useEffect(() => {
+    if (!book || !hadithTarget) return
+    prefetchHadithSection(book.id, hadithTarget.section.id, lang)
+  }, [book, hadithTarget, lang])
+
   const filtered = useMemo(() => {
     if (!sections || hadithTarget) return []
     const q = query.trim().toLowerCase()
@@ -143,6 +148,7 @@ export function HadithBookView({
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault()
     if (!book || !hadithTarget) return
+    prefetchHadithSection(book.id, hadithTarget.section.id, lang)
     router.push(
       hadithRefPath(book.id, hadithTarget.section.id, hadithTarget.number),
     )

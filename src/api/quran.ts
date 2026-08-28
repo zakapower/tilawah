@@ -1,5 +1,5 @@
-import type { Ayah, SurahContent, SurahMeta } from '../data/types'
-import { getSurahList, getSurahMeta } from '../data/surahList'
+import type { Ayah, SurahContent } from '../data/types'
+import { getSurahMeta } from '../data/surahList'
 import { cacheGet, cacheSet, warmCache } from '../utils/pageCache'
 
 const CDN = 'https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/editions'
@@ -34,10 +34,6 @@ async function fetchCdnChapter(edition: string, number: number) {
   })
   if (!res.ok) throw new Error(`Failed to load ${edition}/${number}`)
   return (await res.json()) as CdnChapter
-}
-
-export async function fetchSurahList(): Promise<SurahMeta[]> {
-  return getSurahList()
 }
 
 /** Sync peek — avoid skeleton flash when revisiting a surah. */
