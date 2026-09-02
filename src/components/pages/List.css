@@ -270,6 +270,11 @@
       3rem max(0.9rem, env(safe-area-inset-left, 0px));
   }
 
+  /* Shorthand above must not reopen the gap under Quran search. */
+  .list-page--intro-only {
+    padding-bottom: 0;
+  }
+
   .list-page__head p {
     margin-bottom: 1rem;
   }
