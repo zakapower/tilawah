@@ -4,7 +4,7 @@ import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useStat
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { fetchHadithSection, fetchHadithSections, hadithSectionNeedsRuBackfill, peekHadithSection, peekHadithSections, prefetchHadithSection, prefetchNearbyHadithSections, seedHadithSection, seedHadithSections, warmHadithSectionBothLangs } from '@/api/hadith'
+import { fetchHadithSection, fetchHadithSections, peekHadithSection, peekHadithSections, prefetchHadithSection, prefetchNearbyHadithSections, seedHadithSection, seedHadithSections, warmHadithSectionBothLangs } from '@/api/hadith'
 import { getHadithCollection } from '@/data/hadithCatalog'
 import type { HadithItem, HadithSectionMeta } from '@/data/types'
 import { CopyQuoteButton } from '@/components/CopyQuoteButton'
@@ -83,14 +83,9 @@ const HadithCard = memo(function HadithCard({
           ) : (
             lang === 'ru' &&
             arabic && (
-              <div
-                className="ayah__tr ayah__tr--hadith ayah__tr--pending"
-                aria-hidden="true"
-              >
-                <div className="ayah__tr-pending-line" style={{ width: '92%' }} />
-                <div className="ayah__tr-pending-line" style={{ width: '78%' }} />
-                <div className="ayah__tr-pending-line" style={{ width: '84%' }} />
-              </div>
+              <p className="ayah__tr ayah__tr--hadith ayah__tr--missing">
+                {t('Перевода пока нет', 'Translation not available yet')}
+              </p>
             )
           )}
           {arabic && (
@@ -303,11 +298,8 @@ export function HadithSectionView({
     const cachedSecs = init?.sections ?? peekHadithSections(book.id, lang)
     const cachedItems =
       init?.hadiths ?? peekHadithSection(book.id, sectionId, lang)
-    const ruNeedsBackfill =
-      lang === 'ru' &&
-      Boolean(cachedItems && hadithSectionNeedsRuBackfill(cachedItems))
 
-    if (cachedSecs && cachedItems && !ruNeedsBackfill) {
+    if (cachedSecs && cachedItems) {
       const sec = cachedSecs.find((s) => s.id === sectionId)
       setSections(cachedSecs)
       setTitle(init?.title ?? sec?.name ?? sectionId)
@@ -329,7 +321,6 @@ export function HadithSectionView({
       }
     }
 
-    // Show whatever we have immediately (incl. incomplete RU) while backfill runs.
     if (cachedSecs) {
       const sec = cachedSecs.find((s) => s.id === sectionId)
       setSections(cachedSecs)
@@ -344,7 +335,6 @@ export function HadithSectionView({
         seedHadithSection(book.id, sectionId, lang, init.hadiths)
       }
     } else if (!cachedSecs) {
-      // Only blank when we have nothing for this chapter yet.
       setHadiths(null)
     }
 
@@ -361,29 +351,17 @@ export function HadithSectionView({
       )
     }
 
-    loads.push(
-      (async () => {
-        const shellCached = peekHadithSection(book.id, sectionId, lang)
-        if (!shellCached) {
-          await fetchHadithSection(book.id, sectionId, lang, {
-            machineTranslate: false,
-            onPartial: (items) => {
-              if (!cancelled) schedulePartialHadiths(items)
-            },
-          }).then((items) => {
-            if (!cancelled) setHadiths(items)
-          })
-        }
-
-        await fetchHadithSection(book.id, sectionId, lang, {
+    if (!cachedItems) {
+      loads.push(
+        fetchHadithSection(book.id, sectionId, lang, {
           onPartial: (items) => {
             if (!cancelled) schedulePartialHadiths(items)
           },
         }).then((items) => {
           if (!cancelled) setHadiths(items)
-        })
-      })(),
-    )
+        }),
+      )
+    }
 
     Promise.all(loads)
       .then(() => {

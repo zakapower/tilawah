@@ -173,14 +173,14 @@ export function AboutView() {
                 isnad.link
               </a>
               {t(
-                ' (автор в источнике не указан); EN: hadith-api (автор не указан). Пропуски в RU заполняются автопереводом с английского.',
-                ' edition (author not listed upstream); EN: hadith-api (author not listed). Missing RU lines are filled by auto-translation from English.',
+                ' (автор в источнике не указан); EN: hadith-api (автор не указан).',
+                ' edition (author not listed upstream); EN: hadith-api (author not listed).',
               )}
             </li>
             <li>
               {t(
-                'Сунан ат-Тирмизи, Сунан ан-Насаи, Сунан ибн Маджа и пропуски в других сборниках - RU: автоперевод с английского издания hadith-api; EN: hadith-api.',
-                'Sunan at-Tirmidhi, Sunan an-Nasa’i, Sunan Ibn Majah, and gaps in other collections - RU: auto-translation from the English hadith-api edition; EN: hadith-api.',
+                'Сунан ат-Тирмизи, Сунан ан-Насаи, Сунан ибн Маджа - RU пока нет (показывается пометка); EN: hadith-api.',
+                'Sunan at-Tirmidhi, Sunan an-Nasa’i, Sunan Ibn Majah - no RU yet (a notice is shown); EN: hadith-api.',
               )}
             </li>
           </ul>
@@ -195,8 +195,8 @@ export function AboutView() {
           <h2>{t('Важно знать', 'Disclaimer')}</h2>
           <p>
             {t(
-              'Это не фетва и не замена учёному. Тексты - для личного чтения. Автоперевод хадисов (где нет готового RU) может быть неточным. В сложных вопросах лучше обратиться к знающему человеку.',
-              'This is not a fatwa and not a substitute for a scholar. The texts are for personal reading. Auto-translated hadith (where no RU edition exists) may be imprecise. For complex matters, ask a knowledgeable person.',
+              'Это не фетва и не замена учёному. Тексты - для личного чтения. Русский перевод хадисов берётся только из изданий isnad.link; где его нет, показывается пометка. В сложных вопросах лучше обратиться к знающему человеку.',
+              'This is not a fatwa and not a substitute for a scholar. The texts are for personal reading. Russian hadith translations come only from isnad.link editions; where none exist, a notice is shown. For complex matters, ask a knowledgeable person.',
             )}
           </p>
         </div>

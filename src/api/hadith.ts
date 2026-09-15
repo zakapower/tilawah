@@ -2,7 +2,6 @@ import type { HadithCollectionMeta, HadithItem, HadithSectionMeta, Lang } from '
 import { getHadithCollection, hadithCollections } from '../data/hadithCatalog'
 import { getHadithSectionsStatic } from '../data/hadithSectionsMeta'
 import { sectionNameRu } from '../data/hadithSectionsRu'
-import { translateEnToRuMany } from '../lib/translateEnRu'
 import { cacheGet, cacheSet } from '../utils/pageCache'
 import { normalizeHadithText, ruTranslationLooksComplete } from '../utils/hadithText'
 
@@ -35,8 +34,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 /** Cache label — bump when RU source strategy changes. */
 function translationLabel(col: HadithCollectionMeta, lang: Lang) {
   if (lang !== 'ru') return col.editions.en
-  if (col.editions.ru) return `${col.editions.ru}+enmt4`
-  return 'enmt4'
+  // isnad.link editions via CDN only (no EN→RU machine translate).
+  return col.editions.ru ? `${col.editions.ru}+isnad1` : 'none-isnad1'
 }
 
 function sectionsKey(bookId: string, lang: Lang) {
@@ -49,70 +48,6 @@ function sectionItemsKey(bookId: string, sectionId: string, lang: Lang) {
   return `${col.editions.ar}:${translationLabel(col, lang)}:${sectionId}`
 }
 
-/**
- * CDN Russian when present; empty slots filled by EN→RU machine translate.
- * No i-muslim — EN→RU is preferred for missing RU lines.
- */
-async function buildRuMap(
-  arabic: ApiHadith[],
-  primary: Map<number, string>,
-  enMap: Map<number, string>,
-  translateBatch?: (texts: string[]) => Promise<string[]>,
-  onProgress?: (map: Map<number, string>) => void,
-): Promise<Map<number, string>> {
-  const result = new Map<number, string>()
-  for (const h of arabic) {
-    const n = h.hadithnumber
-    const raw = primary.get(n) || ''
-    if (ruTranslationLooksComplete(raw)) result.set(n, raw)
-  }
-
-  if (!translateBatch) return result
-
-  const missing: Array<{ n: number; en: string }> = []
-  for (const h of arabic) {
-    if (result.has(h.hadithnumber)) continue
-    const en = enMap.get(h.hadithnumber)
-    if (en) missing.push({ n: h.hadithnumber, en })
-  }
-  if (missing.length === 0) return result
-
-  // Keep batches under the translate API char limit (~12k) and item cap.
-  const MAX_ITEMS = 24
-  const MAX_CHARS = 10000
-  let i = 0
-  while (i < missing.length) {
-    const chunk: Array<{ n: number; en: string }> = []
-    let chars = 0
-    while (i < missing.length && chunk.length < MAX_ITEMS) {
-      const next = missing[i]
-      if (chunk.length > 0 && chars + next.en.length > MAX_CHARS) break
-      chunk.push(next)
-      chars += next.en.length
-      i++
-    }
-    let translated = await translateBatch(chunk.map((c) => c.en))
-    // One retry for empty / non-RU slots (transient API / gtx failures).
-    const retryIdx: number[] = []
-    for (let j = 0; j < chunk.length; j++) {
-      const ru = normalizeHadithText(translated[j] || '')
-      if (!ru || !ruTranslationLooksComplete(ru)) retryIdx.push(j)
-    }
-    if (retryIdx.length > 0) {
-      const retried = await translateBatch(retryIdx.map((j) => chunk[j].en))
-      for (let k = 0; k < retryIdx.length; k++) {
-        translated[retryIdx[k]] = retried[k] || translated[retryIdx[k]] || ''
-      }
-    }
-    for (let j = 0; j < chunk.length; j++) {
-      const ru = normalizeHadithText(translated[j] || '')
-      if (ru && ruTranslationLooksComplete(ru)) result.set(chunk[j].n, ru)
-    }
-    onProgress?.(new Map(result))
-  }
-  return result
-}
-
 function textMapFromHadiths(hadiths: ApiHadith[]): Map<number, string> {
   const map = new Map<number, string>()
   for (const h of hadiths) {
@@ -120,6 +55,19 @@ function textMapFromHadiths(hadiths: ApiHadith[]): Map<number, string> {
     if (text) map.set(h.hadithnumber, text)
   }
   return map
+}
+
+/** Keep only finished Russian CDN lines (drop empty / English leftovers). */
+function ruMapFromCdn(
+  arabic: ApiHadith[],
+  cdnRu: Map<number, string>,
+): Map<number, string> {
+  const result = new Map<number, string>()
+  for (const h of arabic) {
+    const raw = cdnRu.get(h.hadithnumber) || ''
+    if (ruTranslationLooksComplete(raw)) result.set(h.hadithnumber, raw)
+  }
+  return result
 }
 
 /** Expand CDN stubs like "Narrated Anas: as above" using the previous real text. */
@@ -212,92 +160,19 @@ function mapHadiths(
     .filter((h) => h.text || h.arabic)
 }
 
-/** Patch RU text slots during MT without re-normalizing Arabic. */
-function applyRuMapToItems(
-  items: HadithItem[],
-  ruMap: Map<number, string>,
-): HadithItem[] {
-  let changed = false
-  const next = items.map((h) => {
-    const text = ruMap.get(h.number)
-    if (!text || text === h.text) return h
-    changed = true
-    return { ...h, text }
-  })
-  return changed ? next : items
-}
-
 export type FetchHadithSectionOptions = {
-  translateBatch?: (texts: string[]) => Promise<string[]>
-  /** When false, skip EN→RU machine translate (fast path / prefetch). Default true. */
+  /** @deprecated No-op — RU uses CDN/isnad only; kept for call-site compat. */
   machineTranslate?: boolean
-  /** Called after CDN texts are ready, before machine translate finishes. */
+  /** @deprecated No-op — machine translate removed. */
+  translateBatch?: (texts: string[]) => Promise<string[]>
   onPartial?: (items: HadithItem[]) => void
 }
 
-function sectionNeedsRuBackfill(items: HadithItem[]) {
-  return items.some((h) => !ruTranslationLooksComplete(h.text))
+function storeSectionItems(key: string, items: HadithItem[]) {
+  cacheSet(SECTION_NS, key, items)
 }
 
-function shouldPersistSection(
-  lang: Lang,
-  items: HadithItem[],
-  machineTranslate: boolean,
-) {
-  if (lang !== 'ru') return true
-  if (!machineTranslate) return false
-  return !sectionNeedsRuBackfill(items)
-}
-
-/** Keep any already-translated lines when a slower shell fetch finishes later. */
-function mergeRuPreferComplete(
-  incoming: HadithItem[],
-  existing: HadithItem[] | null,
-): HadithItem[] {
-  if (!existing?.length) return incoming
-  const prevByNumber = new Map(existing.map((h) => [h.number, h]))
-  return incoming.map((h) => {
-    if (ruTranslationLooksComplete(h.text)) return h
-    const prev = prevByNumber.get(h.number)
-    if (prev && ruTranslationLooksComplete(prev.text)) {
-      return { ...h, text: prev.text }
-    }
-    return h
-  })
-}
-
-function storeSectionItems(
-  key: string,
-  items: HadithItem[],
-  lang: Lang,
-  machineTranslate: boolean,
-  options?: { persist?: boolean },
-) {
-  const existing = cacheGet<HadithItem[]>(SECTION_NS, key)
-  let next = items
-  if (lang === 'ru') {
-    next = mergeRuPreferComplete(items, existing)
-    // Never let a fast shell / partial overwrite a finished RU section.
-    if (
-      existing &&
-      !sectionNeedsRuBackfill(existing) &&
-      sectionNeedsRuBackfill(next)
-    ) {
-      return
-    }
-  }
-  cacheSet(SECTION_NS, key, next, {
-    persist:
-      options?.persist ??
-      shouldPersistSection(lang, next, machineTranslate),
-  })
-}
-
-export function hadithSectionNeedsRuBackfill(items: HadithItem[]) {
-  return sectionNeedsRuBackfill(items)
-}
-
-/** Dedupe concurrent section loads (shell vs full MT must not clobber each other). */
+/** Dedupe concurrent section loads. */
 const sectionInflight = new Map<string, Promise<HadithItem[]>>()
 
 /** Limit parallel CDN prefetches so chapter opens stay snappy. */
@@ -328,38 +203,26 @@ function sectionCached(bookId: string, sectionId: string, lang: Lang) {
   return Boolean(peekHadithSection(bookId, sectionId, lang))
 }
 
-/** CDN shell only — instant chapter open; MT runs separately when needed. */
-function warmHadithSectionShell(
+function warmHadithSection(
   bookId: string,
   sectionId: string,
   lang: Lang,
   priority = false,
 ) {
   if (sectionCached(bookId, sectionId, lang)) return
-  warmHadithTask(
-    () => fetchHadithSection(bookId, sectionId, lang, { machineTranslate: false }),
-    priority,
-  )
-}
-
-/** Full RU backfill after shell is warm. */
-function warmHadithSectionMt(bookId: string, sectionId: string, priority = false) {
-  const cached = peekHadithSection(bookId, sectionId, 'ru')
-  if (cached && !sectionNeedsRuBackfill(cached)) return
-  warmHadithTask(() => fetchHadithSection(bookId, sectionId, 'ru'), priority)
+  warmHadithTask(() => fetchHadithSection(bookId, sectionId, lang), priority)
 }
 
 function warmHadithSectionPair(
   bookId: string,
   sectionId: string,
   lang: Lang,
-  options?: { mt?: boolean; priority?: boolean },
+  options?: { priority?: boolean },
 ) {
   const other: Lang = lang === 'ru' ? 'en' : 'ru'
   const priority = options?.priority ?? false
-  warmHadithSectionShell(bookId, sectionId, lang, priority)
-  warmHadithSectionShell(bookId, sectionId, other, priority)
-  if (options?.mt && lang === 'ru') warmHadithSectionMt(bookId, sectionId, priority)
+  warmHadithSection(bookId, sectionId, lang, priority)
+  warmHadithSection(bookId, sectionId, other, priority)
 }
 
 export async function fetchHadithSection(
@@ -371,55 +234,18 @@ export async function fetchHadithSection(
   const col = getHadithCollection(bookId)
   if (!col) throw new Error('Unknown collection')
 
-  const machineTranslate = options?.machineTranslate !== false
-  const translateBatch =
-    lang === 'ru' && machineTranslate
-      ? (options?.translateBatch ?? translateEnToRuMany)
-      : undefined
-
   const key = sectionItemsKey(bookId, sectionId, lang)
   const cached = peekHadithSection(bookId, sectionId, lang)
   if (cached) {
     options?.onPartial?.(cached)
-    if (
-      lang !== 'ru' ||
-      !translateBatch ||
-      !sectionNeedsRuBackfill(cached)
-    ) {
-      return cached
-    }
-    // Fall through: refresh from sources and fill RU gaps with MT.
+    return cached
   }
 
-  const inflightKey = `${key}|mt:${translateBatch ? 1 : 0}`
-  const pending = sectionInflight.get(inflightKey)
+  const pending = sectionInflight.get(key)
   if (pending) {
     const items = await pending
     options?.onPartial?.(items)
     return items
-  }
-
-  // If a full RU fill is already running, reuse it even for shell requests.
-  if (!translateBatch && lang === 'ru') {
-    const fullPending = sectionInflight.get(`${key}|mt:1`)
-    if (fullPending) {
-      const items = await fullPending
-      options?.onPartial?.(items)
-      return items
-    }
-  }
-
-  // Wait for an in-flight shell before starting MT, then reuse its cache.
-  if (translateBatch && lang === 'ru') {
-    const shellPending = sectionInflight.get(`${key}|mt:0`)
-    if (shellPending) {
-      await shellPending
-      const afterShell = peekHadithSection(bookId, sectionId, lang)
-      if (afterShell) {
-        options?.onPartial?.(afterShell)
-        if (!sectionNeedsRuBackfill(afterShell)) return afterShell
-      }
-    }
   }
 
   const loadPromise = loadHadithSectionItems(
@@ -428,16 +254,14 @@ export async function fetchHadithSection(
     lang,
     col,
     key,
-    machineTranslate,
-    translateBatch,
     options?.onPartial,
   )
-  sectionInflight.set(inflightKey, loadPromise)
+  sectionInflight.set(key, loadPromise)
   try {
     return await loadPromise
   } finally {
-    if (sectionInflight.get(inflightKey) === loadPromise) {
-      sectionInflight.delete(inflightKey)
+    if (sectionInflight.get(key) === loadPromise) {
+      sectionInflight.delete(key)
     }
   }
 }
@@ -448,77 +272,39 @@ async function loadHadithSectionItems(
   lang: Lang,
   col: HadithCollectionMeta,
   key: string,
-  machineTranslate: boolean,
-  translateBatch: ((texts: string[]) => Promise<string[]>) | undefined,
   onPartial?: (items: HadithItem[]) => void,
 ): Promise<HadithItem[]> {
   const arUrl = `${CDN}/editions/${col.editions.ar}/sections/${sectionId}.min.json`
-  const enUrl = `${CDN}/editions/${col.editions.en}/sections/${sectionId}.min.json`
+  const trUrl =
+    lang === 'ru'
+      ? col.editions.ru
+        ? `${CDN}/editions/${col.editions.ru}/sections/${sectionId}.min.json`
+        : null
+      : `${CDN}/editions/${col.editions.en}/sections/${sectionId}.min.json`
 
-  let items: HadithItem[]
+  const [arabic, translation] = await Promise.all([
+    fetchJson<SectionPayload>(arUrl),
+    trUrl
+      ? fetchJson<SectionPayload>(trUrl).catch(() => null)
+      : Promise.resolve(null),
+  ])
+
+  const arList = arabic.hadiths ?? []
+  let textMap: Map<number, string>
 
   if (lang === 'ru') {
-    const arabic = await fetchJson<SectionPayload>(arUrl)
-    const arList = arabic.hadiths ?? []
-    if (arList.length > 0) {
-      const arabicOnly = mapHadiths(bookId, arList, new Map())
-      onPartial?.(arabicOnly)
-    }
-
-    const [english, russian] = await Promise.all([
-      fetchJson<SectionPayload>(enUrl),
-      col.editions.ru
-        ? fetchJson<SectionPayload>(
-            `${CDN}/editions/${col.editions.ru}/sections/${sectionId}.min.json`,
-          ).catch(() => null)
-        : Promise.resolve(null),
-    ])
-    const enRaw = textMapFromHadiths(english.hadiths ?? [])
-    const enMap = resolveEnStubs(
+    textMap = ruMapFromCdn(arList, textMapFromHadiths(translation?.hadiths ?? []))
+  } else {
+    const enRaw = textMapFromHadiths(translation?.hadiths ?? [])
+    textMap = resolveEnStubs(
       enRaw,
       arList.map((h) => h.hadithnumber),
     )
-    const cdnRu = textMapFromHadiths(russian?.hadiths ?? [])
-    const primary = await buildRuMap(arList, cdnRu, enMap, undefined)
-    items = mapHadiths(bookId, arList, primary)
-    storeSectionItems(key, items, lang, machineTranslate)
-    onPartial?.(peekHadithSection(bookId, sectionId, lang) ?? items)
-
-    if (translateBatch) {
-      const shellItems = items
-      const ruMap = await buildRuMap(
-        arList,
-        primary,
-        enMap,
-        translateBatch,
-        (partial) => {
-          const partialItems = applyRuMapToItems(shellItems, partial)
-          if (partialItems === shellItems) return
-          storeSectionItems(key, partialItems, lang, true, { persist: false })
-          onPartial?.(partialItems)
-        },
-      )
-      items = mapHadiths(bookId, arList, ruMap)
-      // Second pass for anything still empty after transient failures.
-      if ([...arList].some((h) => !ruTranslationLooksComplete(ruMap.get(h.hadithnumber) || ''))) {
-        const again = await buildRuMap(arList, ruMap, enMap, translateBatch)
-        items = mapHadiths(bookId, arList, again)
-      }
-    }
-  } else {
-    const [arabic, translation] = await Promise.all([
-      fetchJson<SectionPayload>(arUrl),
-      fetchJson<SectionPayload>(enUrl),
-    ])
-    items = mapHadiths(
-      bookId,
-      arabic.hadiths ?? [],
-      textMapFromHadiths(translation.hadiths ?? []),
-    )
-    onPartial?.(items)
   }
 
-  storeSectionItems(key, items, lang, machineTranslate)
+  const items = mapHadiths(bookId, arList, textMap)
+  onPartial?.(items)
+  storeSectionItems(key, items)
   return peekHadithSection(bookId, sectionId, lang) ?? items
 }
 
@@ -536,16 +322,13 @@ export function seedHadithSection(
   lang: Lang,
   items: HadithItem[],
 ) {
-  const key = sectionItemsKey(bookId, sectionId, lang)
-  // Merge through store guard so SSG/shell seeds cannot wipe filled RU.
-  storeSectionItems(key, items, lang, lang === 'ru' ? false : true)
+  storeSectionItems(sectionItemsKey(bookId, sectionId, lang), items)
 }
 
 /** Warm both language caches for a chapter (for lang tab switching). */
 export function warmHadithSectionBothLangs(bookId: string, sectionId: string) {
-  warmHadithSectionShell(bookId, sectionId, 'en')
-  warmHadithSectionShell(bookId, sectionId, 'ru')
-  warmHadithSectionMt(bookId, sectionId)
+  warmHadithSection(bookId, sectionId, 'en')
+  warmHadithSection(bookId, sectionId, 'ru')
 }
 
 /** Prefetch adjacent hadith chapters in both languages (fast nav / lang switch). */
@@ -560,8 +343,7 @@ export function prefetchNearbyHadithSections(
   const neighbors = sectionIds.slice(Math.max(0, idx - 2), idx + 3)
   for (const id of neighbors) {
     if (id === sectionId) continue
-    const isForward = sectionIds.indexOf(id) > idx
-    warmHadithSectionPair(bookId, id, lang, { mt: lang === 'ru' && isForward })
+    warmHadithSectionPair(bookId, id, lang)
   }
 }
 
@@ -589,10 +371,10 @@ export function prefetchHadithBook(bookId: string, lang: Lang) {
   if (!col) return
   const sections = getHadithSectionsStatic(col.apiBook)
   const firstId = sections?.[0]?.id
-  if (firstId) warmHadithSectionPair(bookId, firstId, lang, { mt: lang === 'ru' })
+  if (firstId) warmHadithSectionPair(bookId, firstId, lang)
 }
 
-/** Prefetch a single chapter's hadiths (shell first, MT in background for RU). */
+/** Prefetch a single chapter's hadiths. */
 export function prefetchHadithSection(
   bookId: string,
   sectionId: string,
@@ -600,7 +382,7 @@ export function prefetchHadithSection(
 ) {
   warmHadithTask(() => fetchHadithSections(bookId, lang))
   warmHadithTask(() => fetchHadithSections(bookId, lang === 'ru' ? 'en' : 'ru'))
-  warmHadithSectionPair(bookId, sectionId, lang, { mt: lang === 'ru', priority: true })
+  warmHadithSectionPair(bookId, sectionId, lang, { priority: true })
 }
 
 /** Prefetch the first few chapters after opening a book. */
@@ -610,13 +392,13 @@ export function prefetchHadithBookSections(
   sectionIds: string[],
   count = 14,
 ) {
-  for (const [i, id] of sectionIds.slice(0, count).entries()) {
-    warmHadithSectionPair(bookId, id, lang, { mt: lang === 'ru' && i === 0 })
+  for (const id of sectionIds.slice(0, count)) {
+    warmHadithSectionPair(bookId, id, lang)
   }
 }
 
 /**
- * Idle batch: warm a bounded set of CDN shells (focus chapter first).
+ * Idle batch: warm a bounded set of CDN sections (focus chapter first).
  * Avoid stampeding all ~100 Bukhari chapters at once.
  */
 export function warmHadithBookSectionsIdle(

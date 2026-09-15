@@ -453,6 +453,11 @@
   color: var(--ink);
 }
 
+.ayah__tr--missing {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .ayah__tr--pending {
   display: grid;
   gap: 0.45rem;

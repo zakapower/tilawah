@@ -66,9 +66,7 @@ export default async function HadithSectionPage({
             sections,
             title: sec?.name ?? sectionId,
           }
-          const hadiths = await fetchHadithSection(book.id, sectionId, lang, {
-            machineTranslate: false,
-          })
+          const hadiths = await fetchHadithSection(book.id, sectionId, lang)
           return { ...base, hadiths }
         } catch {
           return null
