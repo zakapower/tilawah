@@ -12,7 +12,7 @@ import { SiGithub } from '@icons-pack/react-simple-icons'
 import { useApp } from '@/context/AppContext'
 import './About.css'
 
-const GITHUB_URL = 'https://github.com/zakapower/quran-hadith'
+const GITHUB_URL = 'https://github.com/zakapower/tilawah'
 const QURAN_API = 'https://github.com/fawazahmed0/quran-api'
 const HADITH_API = 'https://github.com/fawazahmed0/hadith-api'
 const QURAN_COM = 'https://quran.com'
