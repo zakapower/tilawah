@@ -5,8 +5,7 @@ import './OverlayScrollbar.css'
 
 const HIDE_DELAY_MS = 900
 const MIN_THUMB = 36
-const ARROW = 20
-const STEP = 72
+const EDGE = 2
 /** Ignore ResizeObserver noise smaller than this (px) to avoid thumb jitter. */
 const SIZE_EPS = 8
 
@@ -20,14 +19,12 @@ export function OverlayScrollbar() {
   const resizeRaf = useRef(0)
   const drag = useRef<{ startY: number; startTop: number } | null>(null)
   const hovering = useRef(false)
-  const holdTimer = useRef(0)
-  const holdInterval = useRef(0)
   const lastSize = useRef({ view: 0, total: 0 })
   const metrics = useRef({
     view: 0,
     total: 0,
     thumbHeight: MIN_THUMB,
-    thumbTop: ARROW,
+    thumbTop: EDGE,
     track: 0,
   })
 
@@ -75,7 +72,7 @@ export function OverlayScrollbar() {
 
       const railH =
         railRef.current?.clientHeight || Math.max(0, view - headerH)
-      const track = Math.max(0, railH - ARROW * 2)
+      const track = Math.max(0, railH - EDGE * 2)
       const ratio = view / total
       const rawHeight = Math.max(MIN_THUMB, Math.round(track * ratio))
       // Hysteresis: ignore 1–2px thumb height flicker from layout noise.
@@ -85,12 +82,12 @@ export function OverlayScrollbar() {
       const maxTop = Math.max(0, track - height)
       const top =
         total === view
-          ? ARROW
-          : ARROW + Math.round((root.scrollTop / (total - view)) * maxTop)
+          ? EDGE
+          : EDGE + Math.round((root.scrollTop / (total - view)) * maxTop)
 
       metrics.current.track = track
       metrics.current.thumbHeight = height
-      metrics.current.thumbTop = Math.min(ARROW + maxTop, Math.max(ARROW, top))
+      metrics.current.thumbTop = Math.min(EDGE + maxTop, Math.max(EDGE, top))
       applyThumb(metrics.current.thumbTop, height)
     }
 
@@ -146,8 +143,6 @@ export function OverlayScrollbar() {
       window.cancelAnimationFrame(raf.current)
       window.cancelAnimationFrame(resizeRaf.current)
       window.clearTimeout(hideTimer.current)
-      window.clearTimeout(holdTimer.current)
-      window.clearInterval(holdInterval.current)
     }
   }, [])
 
@@ -165,9 +160,9 @@ export function OverlayScrollbar() {
       const { view, total, thumbHeight, track } = metrics.current
       const maxTop = Math.max(0, track - thumbHeight)
       const nextTop = Math.min(
-        ARROW + maxTop,
+        EDGE + maxTop,
         Math.max(
-          ARROW,
+          EDGE,
           drag.current.startTop + (e.clientY - drag.current.startY),
         ),
       )
@@ -175,7 +170,7 @@ export function OverlayScrollbar() {
       if (thumbRef.current) thumbRef.current.style.top = `${nextTop}px`
       const maxScroll = total - view
       root.scrollTop =
-        maxTop === 0 ? 0 : ((nextTop - ARROW) / maxTop) * maxScroll
+        maxTop === 0 ? 0 : ((nextTop - EDGE) / maxTop) * maxScroll
     }
 
     function onUp() {
@@ -197,29 +192,6 @@ export function OverlayScrollbar() {
       window.removeEventListener('pointercancel', onUp)
     }
   }, [needed])
-
-  function scrollByStep(delta: number) {
-    document.documentElement.scrollBy({ top: delta, behavior: 'auto' })
-    setActive(true)
-  }
-
-  function startHold(delta: number) {
-    scrollByStep(delta)
-    window.clearTimeout(holdTimer.current)
-    window.clearInterval(holdInterval.current)
-    holdTimer.current = window.setTimeout(() => {
-      holdInterval.current = window.setInterval(() => scrollByStep(delta), 50)
-    }, 320)
-  }
-
-  function stopHold() {
-    window.clearTimeout(holdTimer.current)
-    window.clearInterval(holdInterval.current)
-    window.clearTimeout(hideTimer.current)
-    hideTimer.current = window.setTimeout(() => {
-      if (!hovering.current && !drag.current) setActive(false)
-    }, HIDE_DELAY_MS)
-  }
 
   if (!needed) return null
 
@@ -245,17 +217,6 @@ export function OverlayScrollbar() {
       }}
     >
       <button
-        type="button"
-        className="overlay-scrollbar__arrow overlay-scrollbar__arrow--up"
-        tabIndex={-1}
-        onPointerDown={(e) => {
-          e.preventDefault()
-          startHold(-STEP)
-        }}
-        onPointerUp={stopHold}
-        onPointerCancel={stopHold}
-      />
-      <button
         ref={thumbRef}
         type="button"
         className="overlay-scrollbar__thumb"
@@ -271,17 +232,6 @@ export function OverlayScrollbar() {
           window.clearTimeout(hideTimer.current)
           e.currentTarget.setPointerCapture(e.pointerId)
         }}
-      />
-      <button
-        type="button"
-        className="overlay-scrollbar__arrow overlay-scrollbar__arrow--down"
-        tabIndex={-1}
-        onPointerDown={(e) => {
-          e.preventDefault()
-          startHold(STEP)
-        }}
-        onPointerUp={stopHold}
-        onPointerCancel={stopHold}
       />
     </div>
   )
