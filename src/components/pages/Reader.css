@@ -376,48 +376,76 @@
   border-radius: 0.85rem;
 }
 
+.ayah--hadith .ayah__top {
+  margin-bottom: 1rem;
+}
+
+/* Same roles as theme tokens — clearer hue per grade. */
 .ayah--grade-sahih {
-  background: color-mix(in srgb, #2f5d4a 14%, var(--surface));
-  border-color: color-mix(in srgb, #2f5d4a 28%, var(--line));
+  --accent: #1f4a38;
+  --line: #d5ddd7;
+  --surface: #ffffff;
+  --muted: #5c6b61;
 }
 
 .ayah--grade-hasan {
-  background: color-mix(in srgb, #3b6ea5 14%, var(--surface));
-  border-color: color-mix(in srgb, #3b6ea5 28%, var(--line));
+  --accent: #1a5288;
+  --line: #c2cddc;
+  --surface: #eef4fb;
+  --muted: #4a5560;
 }
 
 .ayah--grade-daif {
-  background: color-mix(in srgb, #c4a035 16%, var(--surface));
-  border-color: color-mix(in srgb, #c4a035 30%, var(--line));
+  --accent: #8a6a12;
+  --line: #d6cdb4;
+  --surface: #f7f1e0;
+  --muted: #5a5348;
 }
 
 .ayah--grade-mawdu {
-  background: color-mix(in srgb, #b04040 14%, var(--surface));
-  border-color: color-mix(in srgb, #b04040 28%, var(--line));
+  --accent: #962e2e;
+  --line: #d8c0c0;
+  --surface: #faeeee;
+  --muted: #5a4848;
 }
 
 :root[data-theme='dark'] .ayah--grade-sahih {
-  background: color-mix(in srgb, #7eb897 16%, var(--surface));
-  border-color: color-mix(in srgb, #7eb897 32%, var(--line));
+  --accent: #7eb897;
+  --line: #2a3530;
+  --surface: #171d19;
+  --muted: #9aab9f;
 }
 
 :root[data-theme='dark'] .ayah--grade-hasan {
-  background: color-mix(in srgb, #6a9fd4 16%, var(--surface));
-  border-color: color-mix(in srgb, #6a9fd4 32%, var(--line));
+  --accent: #7eb0e0;
+  --line: #2a3340;
+  --surface: #151a22;
+  --muted: #9aa4b0;
 }
 
 :root[data-theme='dark'] .ayah--grade-daif {
-  background: color-mix(in srgb, #d4b84a 14%, var(--surface));
-  border-color: color-mix(in srgb, #d4b84a 30%, var(--line));
+  --accent: #c4b26a;
+  --line: #3a3624;
+  --surface: #1c1a12;
+  --muted: #aba48f;
 }
 
 :root[data-theme='dark'] .ayah--grade-mawdu {
-  background: color-mix(in srgb, #d66a6a 14%, var(--surface));
-  border-color: color-mix(in srgb, #d66a6a 30%, var(--line));
+  --accent: #e07878;
+  --line: #402a2a;
+  --surface: #221515;
+  --muted: #ab9494;
 }
 
-.ayah--hadith .ayah__top {
-  margin-bottom: 1rem;
+.ayah--grade-sahih .ayah__copy,
+.ayah--grade-sahih .ayah__fav,
+.ayah--grade-hasan .ayah__copy,
+.ayah--grade-hasan .ayah__fav,
+.ayah--grade-daif .ayah__copy,
+.ayah--grade-daif .ayah__fav,
+.ayah--grade-mawdu .ayah__copy,
+.ayah--grade-mawdu .ayah__fav {
+  color: var(--accent);
 }
 
 .ayah__ar {

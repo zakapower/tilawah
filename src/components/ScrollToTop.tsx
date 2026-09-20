@@ -26,6 +26,17 @@ function sameSurahReaderNav(from: string, to: string) {
   return a != null && a === b
 }
 
+/** /hadith/bukhari/1 ↔ /hadith/bukhari/1:7 — та же глава. */
+function sameHadithSectionNav(from: string, to: string) {
+  const sectionOf = (p: string) => {
+    const m = /^\/hadith\/([^/]+)\/([^/:]+)/.exec(p)
+    return m ? `${m[1]}/${m[2]}` : null
+  }
+  const a = sectionOf(from)
+  const b = sectionOf(to)
+  return a != null && a === b
+}
+
 /**
  * При смене маршрута — наверх.
  * Исключения: возврат из читалки на список; смена аятного ref внутри одной суры.
@@ -45,6 +56,7 @@ export function ScrollToTop() {
     prevPath.current = pathname
     if (fromReaderToList(from, pathname)) return
     if (sameSurahReaderNav(from, pathname)) return
+    if (sameHadithSectionNav(from, pathname)) return
     window.scrollTo(0, 0)
   }, [pathname])
 

@@ -9,6 +9,7 @@ import {
   loadBothLangs,
 } from '@/lib/ssg'
 import { clipDescription, pageAlternates, pageTitle } from '@/lib/site'
+import { parseHadithSectionPathRef } from '@/utils/hadithRef'
 
 /** First visit builds HTML; then cached (ISR). Avoids huge Vercel builds. */
 export const revalidate = 86400
@@ -23,7 +24,9 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string; sectionId: string }>
 }): Promise<Metadata> {
-  const { id, sectionId } = await params
+  const { id, sectionId: sectionRaw } = await params
+  const pathRef = parseHadithSectionPathRef(sectionRaw)
+  const sectionId = pathRef?.sectionId ?? sectionRaw
   const lang = await getRequestLang()
   const book = getHadithCollection(id)
   const tab = book
@@ -35,10 +38,15 @@ export async function generateMetadata({
   const description =
     lang === 'ru' ? 'Чтение главы хадисов.' : 'Read a hadith chapter.'
 
+  const path =
+    pathRef?.hadithNumber != null
+      ? `/hadith/${id}/${sectionId}:${pathRef.hadithNumber}`
+      : `/hadith/${id}/${sectionId}`
+
   return {
     title: tab,
     description: clipDescription(description),
-    alternates: pageAlternates(`/hadith/${id}/${sectionId}`),
+    alternates: pageAlternates(path),
     openGraph: { title, description: clipDescription(description) },
   }
 }
@@ -48,7 +56,9 @@ export default async function HadithSectionPage({
 }: {
   params: Promise<{ id: string; sectionId: string }>
 }) {
-  const { id, sectionId } = await params
+  const { id, sectionId: sectionRaw } = await params
+  const pathRef = parseHadithSectionPathRef(sectionRaw)
+  const sectionId = pathRef?.sectionId ?? sectionRaw
   const book = getHadithCollection(id)
 
   type Pack = {

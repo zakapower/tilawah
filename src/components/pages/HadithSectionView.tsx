@@ -11,7 +11,7 @@ import { CopyQuoteButton } from '@/components/CopyQuoteButton'
 import { FavoriteButton } from '@/components/FavoriteButton'
 import { ReaderSkeleton } from '@/components/ReaderSkeleton'
 import { useReaderScrollMemory } from '@/hooks/useReaderScrollMemory'
-import { parseHadithParam } from '@/utils/hadithRef'
+import { parseHadithParam, parseHadithSectionPathRef } from '@/utils/hadithRef'
 import { splitHadithLead } from '@/utils/hadithText'
 import { useApp } from '@/context/AppContext'
 import './Reader.css'
@@ -178,7 +178,12 @@ export function HadithSectionView({
   const searchParams = useSearchParams()
   const { lang, t } = useApp()
   const book = params.id ? getHadithCollection(params.id) : undefined
-  const sectionId = params.sectionId
+  const pathRef = useMemo(
+    () => parseHadithSectionPathRef(String(params.sectionId ?? '')),
+    [params.sectionId],
+  )
+  const sectionId = pathRef?.sectionId ?? null
+  const pathHadith = pathRef?.hadithNumber ?? null
 
   const boot = () => {
     if (!book || !sectionId) return null
@@ -259,10 +264,10 @@ export function HadithSectionView({
     book && sectionId ? `/hadith/${book.id}/${sectionId}` : null
 
   const highlight = useMemo(() => {
-    const n = parseHadithParam(searchParams.get('h'))
+    const n = pathHadith ?? parseHadithParam(searchParams.get('h'))
     if (!n || !hadiths) return null
     return hadiths.some((h) => h.number === n) ? n : null
-  }, [searchParams, hadiths])
+  }, [pathHadith, searchParams, hadiths])
 
   const adjacent = useMemo(() => {
     if (!sections || !sectionId) {
@@ -490,7 +495,7 @@ export function HadithSectionView({
                 h={h}
                 bookId={book.id}
                 bookTitle={book.title[lang]}
-                sectionId={sectionId}
+                sectionId={sectionId!}
                 lang={lang}
                 t={t}
               />

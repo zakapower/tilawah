@@ -76,7 +76,7 @@ export function peekLastHadithAnchor(listPath: string) {
     if (!m) return null
     const bookId = m[1]
     if (!raw.startsWith(`${bookId}/`)) return null
-    const sectionId = raw.slice(bookId.length + 1)
+    const sectionId = raw.slice(bookId.length + 1).split(':')[0]
     return sectionId ? `hadith-section-${bookId}-${sectionId}` : null
   } catch {
     return null
