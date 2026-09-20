@@ -39,10 +39,10 @@ Priority when a string could match more than one: **mawdu > sahih > hasan > daif
 
 - Full card background tint (user choice B), not only a left rail.
 - Soft color-mix against `--surface` so light/dark themes stay readable:
-  - sahih → subtle green
-  - hasan → subtle amber/yellow
-  - daif → subtle red
-  - mawdu → deeper red / distinct purple-red (visually stronger than daif)
+  - sahih → subtle green (same family as current accent-green feel)
+  - hasan → subtle blue
+  - daif → subtle yellow / amber
+  - mawdu → subtle red
   - unknown → unchanged current surface
 - No grade text badge on the card.
 
@@ -67,4 +67,4 @@ Priority when a string could match more than one: **mawdu > sahih > hasan > daif
 - Bukhari / Muslim cards are all green-tinted sahih.
 - Cards without usable grades look like today.
 - Light and dark themes remain readable.
-- Mawdu tint is visually distinct from daif.
+- Mawdu (red) is visually distinct from daif (yellow) and hasan (blue).
