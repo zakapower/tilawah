@@ -56,102 +56,111 @@ export function HadithListView() {
   }
 
   return (
-    <div className="list-page">
-      <header className="list-page__head list-page__head--center">
-        <h1>{t('Хадисы', 'Hadith')}</h1>
-        <p>
-          {t(
-            'Шесть главных сборников хадисов',
-            'Six main hadith collections',
-          )}
-        </p>
-        <form className="search" onSubmit={onSearchSubmit}>
-          <label>
-            <span className="sr-only">{t('Поиск', 'Search')}</span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t(
-                'Поиск хадиса по номеру во всех сборниках',
-                'Search hadith by number across all collections',
+    <>
+      <div className="list-page list-page--intro-only">
+        <div className="list-page__intro">
+          <header className="list-page__head list-page__head--center">
+            <h1>{t('Хадисы', 'Hadith')}</h1>
+            <p>
+              {t(
+                'Шесть главных сборников хадисов',
+                'Six main hadith collections',
               )}
-              inputMode="search"
-              autoComplete="off"
-            />
-          </label>
-        </form>
-      </header>
+            </p>
+            <form className="search" onSubmit={onSearchSubmit}>
+              <label>
+                <span className="sr-only">{t('Поиск', 'Search')}</span>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t(
+                    'Поиск хадиса по номеру во всех сборниках',
+                    'Search hadith by number across all collections',
+                  )}
+                  inputMode="search"
+                  autoComplete="off"
+                />
+              </label>
+            </form>
+          </header>
 
-      {hadithRef && hadithHits.length === 0 && (
-        <p className="list-page__status">
-          {t(
-            'Хадис не найден. Проверь сборник и номер.',
-            'Hadith not found. Check the collection and number.',
+          {hadithRef && hadithHits.length === 0 && (
+            <p className="list-page__status">
+              {t(
+                'Хадис не найден. Проверь сборник и номер.',
+                'Hadith not found. Check the collection and number.',
+              )}
+            </p>
           )}
-        </p>
-      )}
 
-      {hadithHits.length > 0 && (
-        <ol className="card-list">
-          {hadithHits.map((hit) => (
-            <li key={`${hit.book.id}-${hit.number}`}>
-              <Link
-                className="card-list__ayah-hit"
-                href={hadithRefPath(hit.book.id, hit.section.id, hit.number)}
-                prefetch={false}
-                onPointerEnter={() =>
-                  prefetchHadithSection(hit.book.id, hit.section.id, lang)
-                }
-                onPointerDown={() =>
-                  prefetchHadithSection(hit.book.id, hit.section.id, lang)
-                }
-              >
-                <span className="card-list__n">{hit.number}</span>
-                <span className="card-list__body">
-                  <strong>{hit.book.title[lang]}</strong>
-                  <span className="card-list__meta">
-                    {hit.section.name}
-                    {` · ${t('Перейти к хадису', 'Go to hadith')}`}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      )}
+          {hadithHits.length > 0 && (
+            <ol className="card-list">
+              {hadithHits.map((hit) => (
+                <li key={`${hit.book.id}-${hit.number}`}>
+                  <Link
+                    className="card-list__ayah-hit"
+                    href={hadithRefPath(hit.book.id, hit.section.id, hit.number)}
+                    prefetch={false}
+                    onPointerEnter={() =>
+                      prefetchHadithSection(hit.book.id, hit.section.id, lang)
+                    }
+                    onPointerDown={() =>
+                      prefetchHadithSection(hit.book.id, hit.section.id, lang)
+                    }
+                  >
+                    <span className="card-list__n">{hit.number}</span>
+                    <span className="card-list__body">
+                      <strong>{hit.book.title[lang]}</strong>
+                      <span className="card-list__meta">
+                        {hit.section.name}
+                        {` · ${t('Перейти к хадису', 'Go to hadith')}`}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
 
       {!hadithRef && (
-        <ol className="card-list card-list--cols-2">
-          {filteredBooks.map((b) => {
-            const i = hadithCollections.findIndex((c) => c.id === b.id)
-            return (
-              <li key={b.id} id={`hadith-book-${b.id}`}>
-                <Link
-                  href={`/hadith/${b.id}`}
-                  prefetch={false}
-                  onPointerEnter={() => prefetchHadithBook(b.id, lang)}
-                  onPointerDown={() => prefetchHadithBook(b.id, lang)}
-                  onClick={() => {
-                    saveListScroll('/hadith')
-                    saveLastHadith(b.id)
-                  }}
-                >
-                  <span className="card-list__n">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="card-list__body">
-                    <strong>{b.title[lang]}</strong>
-                    <span className="card-list__meta">
-                      {b.narrator[lang]}
-                      {` · ${b.hadithCount} ${t('хадисов', 'hadiths')}`}
+        <section
+          className="list-page__books"
+          aria-label={t('Сборники', 'Collections')}
+        >
+          <ol className="card-list card-list--cols-2">
+            {filteredBooks.map((b) => {
+              const i = hadithCollections.findIndex((c) => c.id === b.id)
+              return (
+                <li key={b.id} id={`hadith-book-${b.id}`}>
+                  <Link
+                    href={`/hadith/${b.id}`}
+                    prefetch={false}
+                    onPointerEnter={() => prefetchHadithBook(b.id, lang)}
+                    onPointerDown={() => prefetchHadithBook(b.id, lang)}
+                    onClick={() => {
+                      saveListScroll('/hadith')
+                      saveLastHadith(b.id)
+                    }}
+                  >
+                    <span className="card-list__n">
+                      {String(i + 1).padStart(2, '0')}
                     </span>
-                  </span>
-                </Link>
-              </li>
-            )
-          })}
-        </ol>
+                    <span className="card-list__body">
+                      <strong>{b.title[lang]}</strong>
+                      <span className="card-list__meta">
+                        {b.narrator[lang]}
+                        {` · ${b.hadithCount} ${t('хадисов', 'hadiths')}`}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
       )}
-    </div>
+    </>
   )
 }

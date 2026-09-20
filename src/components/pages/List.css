@@ -262,6 +262,34 @@
   .card-list--cols-2 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .card-list--cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .card-list--cols {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* 2 колонки; ширина карточки ≈ как у сур (72rem / 3) */
+.list-page__books {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+.list-page__books .card-list {
+  margin-top: 1rem;
+}
+
+@media (max-width: 720px) {
+  .list-page__books {
+    padding: 0 max(0.9rem, env(safe-area-inset-right, 0px)) 3rem
+      max(0.9rem, env(safe-area-inset-left, 0px));
+  }
 }
 
 @media (max-width: 720px) {
