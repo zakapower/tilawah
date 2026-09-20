@@ -49,7 +49,12 @@ const HadithCard = memo(function HadithCard({
   const copyBody = translation || arabic
 
   return (
-    <article className="ayah ayah--hadith" id={h.id}>
+    <article
+      className={
+        h.grade ? `ayah ayah--hadith ayah--grade-${h.grade}` : 'ayah ayah--hadith'
+      }
+      id={h.id}
+    >
       <div className="ayah__top">
         <p className="ayah__n">
           {Number.isInteger(h.number) ? h.number : String(h.number)}

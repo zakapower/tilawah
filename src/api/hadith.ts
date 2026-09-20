@@ -2,6 +2,7 @@ import type { HadithCollectionMeta, HadithItem, HadithSectionMeta, Lang } from '
 import { getHadithCollection, hadithCollections } from '../data/hadithCatalog'
 import { getHadithSectionsStatic } from '../data/hadithSectionsMeta'
 import { sectionNameRu } from '../data/hadithSectionsRu'
+import { resolveHadithGrade, type HadithGradeEntry } from '../utils/hadithGrade'
 import { cacheGet, cacheSet } from '../utils/pageCache'
 import { normalizeHadithText, ruTranslationLooksComplete } from '../utils/hadithText'
 
@@ -11,6 +12,7 @@ type ApiHadith = {
   hadithnumber: number
   arabicnumber?: number
   text: string
+  grades?: HadithGradeEntry[]
   reference?: { book: number; hadith: number }
 }
 
@@ -45,7 +47,8 @@ function sectionsKey(bookId: string, lang: Lang) {
 function sectionItemsKey(bookId: string, sectionId: string, lang: Lang) {
   const col = getHadithCollection(bookId)
   if (!col) return `${bookId}:${sectionId}:${lang}`
-  return `${col.editions.ar}:${translationLabel(col, lang)}:${sectionId}`
+  // grade1 — include resolved authenticity tint on HadithItem
+  return `${col.editions.ar}:${translationLabel(col, lang)}:grade1:${sectionId}`
 }
 
 function textMapFromHadiths(hadiths: ApiHadith[]): Map<number, string> {
@@ -149,12 +152,14 @@ function mapHadiths(
       const n = ar.hadithnumber
       const arabicText = ar.text ? normalizeHadithText(ar.text) : undefined
       const text = translations.get(n) ?? ''
+      const bucket = resolveHadithGrade(bookId, ar.grades)
       return {
         id: `${bookId}-${n}`,
         number: n,
         arabic: arabicText || undefined,
         text,
         reference: ar.reference,
+        ...(bucket !== 'unknown' ? { grade: bucket } : {}),
       }
     })
     .filter((h) => h.text || h.arabic)

@@ -376,6 +376,46 @@
   border-radius: 0.85rem;
 }
 
+.ayah--grade-sahih {
+  background: color-mix(in srgb, #2f5d4a 14%, var(--surface));
+  border-color: color-mix(in srgb, #2f5d4a 28%, var(--line));
+}
+
+.ayah--grade-hasan {
+  background: color-mix(in srgb, #3b6ea5 14%, var(--surface));
+  border-color: color-mix(in srgb, #3b6ea5 28%, var(--line));
+}
+
+.ayah--grade-daif {
+  background: color-mix(in srgb, #c4a035 16%, var(--surface));
+  border-color: color-mix(in srgb, #c4a035 30%, var(--line));
+}
+
+.ayah--grade-mawdu {
+  background: color-mix(in srgb, #b04040 14%, var(--surface));
+  border-color: color-mix(in srgb, #b04040 28%, var(--line));
+}
+
+:root[data-theme='dark'] .ayah--grade-sahih {
+  background: color-mix(in srgb, #7eb897 16%, var(--surface));
+  border-color: color-mix(in srgb, #7eb897 32%, var(--line));
+}
+
+:root[data-theme='dark'] .ayah--grade-hasan {
+  background: color-mix(in srgb, #6a9fd4 16%, var(--surface));
+  border-color: color-mix(in srgb, #6a9fd4 32%, var(--line));
+}
+
+:root[data-theme='dark'] .ayah--grade-daif {
+  background: color-mix(in srgb, #d4b84a 14%, var(--surface));
+  border-color: color-mix(in srgb, #d4b84a 30%, var(--line));
+}
+
+:root[data-theme='dark'] .ayah--grade-mawdu {
+  background: color-mix(in srgb, #d66a6a 14%, var(--surface));
+  border-color: color-mix(in srgb, #d66a6a 30%, var(--line));
+}
+
 .ayah--hadith .ayah__top {
   margin-bottom: 1rem;
 }
@@ -455,7 +495,6 @@
 
 .ayah__tr--missing {
   color: var(--muted);
-  font-style: italic;
 }
 
 .ayah__tr--pending {

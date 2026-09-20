@@ -48,10 +48,14 @@ export interface HadithSectionMeta {
   count: number
 }
 
+export type HadithGrade = 'sahih' | 'hasan' | 'daif' | 'mawdu'
+
 export interface HadithItem {
   id: string
   number: number
   arabic?: string
   text: string
   reference?: { book: number; hadith: number }
+  /** Resolved authenticity bucket for card tint; omit when unknown. */
+  grade?: HadithGrade
 }
