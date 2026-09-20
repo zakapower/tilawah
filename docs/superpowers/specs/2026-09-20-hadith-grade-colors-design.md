@@ -6,7 +6,7 @@
 
 ## Goal
 
-Color each hadith card background by authenticity grade so readers can tell sahih / hasan / da'if at a glance while reading a section.
+Color each hadith card background by authenticity grade so readers can tell sahih / hasan / da'if / mawdu' at a glance while reading a section.
 
 ## Non-goals
 
@@ -26,13 +26,14 @@ Color each hadith card background by authenticity grade so readers can tell sahi
    - Prefer grade whose `name` matches Al-Albani (case-insensitive contains `albani`).
    - Else use the first grade in the array.
    - Else `unknown` (keep default card surface).
-3. Map the chosen grade string (case-insensitive) into one of three buckets:
+3. Map the chosen grade string (case-insensitive) into one of four buckets:
+   - **mawdu** — fabricated / forged (`mawdu`, `maudu`, `fabricated`, `forged`, and similar)
    - **sahih** — contains `sahih` (including `Hasan Sahih`, `Isnaad Sahih`, `Sahih Lighairihi`, cross-refs to Bukhari/Muslim, etc.)
-   - **hasan** — contains `hasan` and not already classified as sahih
-   - **daif** — contains `daif` / `da'if` / `weak`, or clearly weaker labels (`munkar`, `shadh`, `mawdu`, etc.)
+   - **hasan** — contains `hasan` and not already classified as sahih or mawdu
+   - **daif** — contains `daif` / `da'if` / `weak`, or other weak labels (`munkar`, `shadh`, etc.) that are not mawdu
    - **unknown** — anything else / empty
 
-Priority when a string could match more than one: **sahih > hasan > daif** (so `Hasan Sahih` → sahih).
+Priority when a string could match more than one: **mawdu > sahih > hasan > daif** (so `Hasan Sahih` → sahih; any fabricated label wins over weaker wording).
 
 ## Visual design
 
@@ -41,17 +42,18 @@ Priority when a string could match more than one: **sahih > hasan > daif** (so `
   - sahih → subtle green
   - hasan → subtle amber/yellow
   - daif → subtle red
+  - mawdu → deeper red / distinct purple-red (visually stronger than daif)
   - unknown → unchanged current surface
 - No grade text badge on the card.
 
 ## Implementation sketch
 
 1. Extend API parse in `src/api/hadith.ts` to keep `grades` from JSON.
-2. Add `grade?: 'sahih' | 'hasan' | 'daif'` (or derive at render) on `HadithItem`.
-3. Pure helper `resolveHadithGrade(bookId, grades) → bucket`.
+2. Add `grade?: 'sahih' | 'hasan' | 'daif' | 'mawdu'` (or derive at render) on `HadithItem`.
+3. Pure helper `resolveHadithGrade(bookId, grades) → 'sahih' | 'hasan' | 'daif' | 'mawdu' | 'unknown'`.
 4. In `HadithSectionView`, add modifier class on `.ayah--hadith` (e.g. `ayah--grade-sahih`).
-5. CSS in `Reader.css` for the three tint classes.
-6. Unit tests for the resolver (Albani preference, Hasan Sahih → sahih, Bukhari force-sahih, empty → unknown).
+5. CSS in `Reader.css` for the four tint classes.
+6. Unit tests for the resolver (Albani preference, Hasan Sahih → sahih, mawdu detection, Bukhari force-sahih, empty → unknown).
 
 ## Risks / notes
 
@@ -61,7 +63,8 @@ Priority when a string could match more than one: **sahih > hasan > daif** (so `
 
 ## Success criteria
 
-- Opening Abu Dawud / Tirmidhi section shows mixed card colors matching resolved grades.
+- Opening Abu Dawud / Tirmidhi section shows mixed card colors matching resolved grades (including mawdu when present).
 - Bukhari / Muslim cards are all green-tinted sahih.
 - Cards without usable grades look like today.
 - Light and dark themes remain readable.
+- Mawdu tint is visually distinct from daif.
