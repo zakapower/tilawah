@@ -46,15 +46,19 @@ function AyahFavoriteButton({
     <button
       type="button"
       className={`ayah__fav${active ? ' ayah__fav--on' : ''}`}
-      onClick={() => toggle(snippet)}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        toggle(snippet)
+      }}
       aria-label={label}
       title={label}
       aria-pressed={active}
     >
       {active ? (
-        <BookmarkCheck strokeWidth={2} aria-hidden="true" />
+        <BookmarkCheck strokeWidth={2.25} fill="currentColor" aria-hidden="true" />
       ) : (
-        <Bookmark strokeWidth={2} aria-hidden="true" />
+        <Bookmark strokeWidth={2.25} aria-hidden="true" />
       )}
     </button>
   )
@@ -77,15 +81,19 @@ function HadithFavoriteButton({
     <button
       type="button"
       className={`ayah__fav${active ? ' ayah__fav--on' : ''}`}
-      onClick={() => toggle(bookTitle, snippet)}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        toggle(bookTitle, snippet)
+      }}
       aria-label={label}
       title={label}
       aria-pressed={active}
     >
       {active ? (
-        <BookmarkCheck strokeWidth={2} aria-hidden="true" />
+        <BookmarkCheck strokeWidth={2.25} fill="currentColor" aria-hidden="true" />
       ) : (
-        <Bookmark strokeWidth={2} aria-hidden="true" />
+        <Bookmark strokeWidth={2.25} aria-hidden="true" />
       )}
     </button>
   )

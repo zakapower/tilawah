@@ -21,17 +21,11 @@ export type FavoritesStore = {
 
 const KEY = 'tilawah-favorites-v1'
 const MAX = 200
-const EVENT = 'tilawah-favorites'
 
-const empty: FavoritesStore = { ayahs: [], hadiths: [] }
+const serverSnapshot: FavoritesStore = { ayahs: [], hadiths: [] }
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined'
-}
-
-function emit() {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(new Event(EVENT))
 }
 
 function truncate(text: string, max = 180) {
@@ -41,52 +35,77 @@ function truncate(text: string, max = 180) {
 }
 
 function readRaw(): FavoritesStore {
-  if (!canUseStorage()) return empty
+  if (!canUseStorage()) return { ayahs: [], hadiths: [] }
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return empty
+    if (!raw) return { ayahs: [], hadiths: [] }
     const parsed = JSON.parse(raw) as Partial<FavoritesStore>
     return {
       ayahs: Array.isArray(parsed.ayahs) ? parsed.ayahs : [],
       hadiths: Array.isArray(parsed.hadiths) ? parsed.hadiths : [],
     }
   } catch {
-    return empty
+    return { ayahs: [], hadiths: [] }
   }
 }
 
-function writeRaw(store: FavoritesStore) {
+function persist(store: FavoritesStore) {
   if (!canUseStorage()) return
   try {
     localStorage.setItem(KEY, JSON.stringify(store))
   } catch {
-    /* quota */
+    /* private mode / quota — memory store still works */
   }
-  emit()
 }
 
-let cache: FavoritesStore | null = null
+let snapshot: FavoritesStore | null = null
+const listeners = new Set<() => void>()
+let storageBound = false
+
+function getSnapshotState(): FavoritesStore {
+  if (!snapshot) snapshot = readRaw()
+  return snapshot
+}
+
+function emitChange() {
+  listeners.forEach((l) => l())
+}
+
+function commit(next: FavoritesStore) {
+  snapshot = next
+  emitChange()
+  // Persist after notifying UI so storage failures cannot block the toggle.
+  persist(next)
+}
+
+function onStorage(e: StorageEvent) {
+  if (e.key !== KEY && e.key !== null) return
+  snapshot = readRaw()
+  emitChange()
+}
 
 export function getFavoritesSnapshot(): FavoritesStore {
-  if (!cache) cache = readRaw()
-  return cache
+  return getSnapshotState()
 }
 
 export function getServerFavoritesSnapshot(): FavoritesStore {
-  return empty
+  return serverSnapshot
 }
 
 export function subscribeFavorites(onChange: () => void) {
   if (typeof window === 'undefined') return () => {}
-  const handler = () => {
-    cache = readRaw()
-    onChange()
+  listeners.add(onChange)
+  if (!storageBound) {
+    window.addEventListener('storage', onStorage)
+    storageBound = true
   }
-  window.addEventListener(EVENT, handler)
-  window.addEventListener('storage', handler)
+
   return () => {
-    window.removeEventListener(EVENT, handler)
-    window.removeEventListener('storage', handler)
+    listeners.delete(onChange)
+    if (listeners.size === 0 && storageBound) {
+      window.removeEventListener('storage', onStorage)
+      storageBound = false
+    }
   }
 }
 
@@ -120,25 +139,23 @@ export function toggleAyahFavorite(opts: {
   ayah: number
   snippet: string
 }) {
-  const store = { ...getFavoritesSnapshot() }
-  const i = store.ayahs.findIndex(
+  const prev = getFavoritesSnapshot()
+  const i = prev.ayahs.findIndex(
     (a) => a.surah === opts.surah && a.ayah === opts.ayah,
   )
-  if (i >= 0) {
-    store.ayahs = store.ayahs.filter((_, idx) => idx !== i)
-  } else {
-    store.ayahs = [
-      {
-        surah: opts.surah,
-        ayah: opts.ayah,
-        snippet: truncate(opts.snippet),
-        addedAt: Date.now(),
-      },
-      ...store.ayahs,
-    ].slice(0, MAX)
-  }
-  cache = store
-  writeRaw(store)
+  const ayahs =
+    i >= 0
+      ? prev.ayahs.filter((_, idx) => idx !== i)
+      : [
+          {
+            surah: opts.surah,
+            ayah: opts.ayah,
+            snippet: truncate(opts.snippet),
+            addedAt: Date.now(),
+          },
+          ...prev.ayahs,
+        ].slice(0, MAX)
+  commit({ ayahs, hadiths: prev.hadiths })
   return i < 0
 }
 
@@ -149,30 +166,28 @@ export function toggleHadithFavorite(opts: {
   bookTitle: string
   snippet: string
 }) {
-  const store = { ...getFavoritesSnapshot() }
-  const i = store.hadiths.findIndex(
+  const prev = getFavoritesSnapshot()
+  const i = prev.hadiths.findIndex(
     (h) =>
       h.bookId === opts.bookId &&
       h.sectionId === opts.sectionId &&
       h.number === opts.number,
   )
-  if (i >= 0) {
-    store.hadiths = store.hadiths.filter((_, idx) => idx !== i)
-  } else {
-    store.hadiths = [
-      {
-        bookId: opts.bookId,
-        sectionId: opts.sectionId,
-        number: opts.number,
-        bookTitle: opts.bookTitle,
-        snippet: truncate(opts.snippet),
-        addedAt: Date.now(),
-      },
-      ...store.hadiths,
-    ].slice(0, MAX)
-  }
-  cache = store
-  writeRaw(store)
+  const hadiths =
+    i >= 0
+      ? prev.hadiths.filter((_, idx) => idx !== i)
+      : [
+          {
+            bookId: opts.bookId,
+            sectionId: opts.sectionId,
+            number: opts.number,
+            bookTitle: opts.bookTitle,
+            snippet: truncate(opts.snippet),
+            addedAt: Date.now(),
+          },
+          ...prev.hadiths,
+        ].slice(0, MAX)
+  commit({ ayahs: prev.ayahs, hadiths })
   return i < 0
 }
 

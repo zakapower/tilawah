@@ -183,12 +183,14 @@
   width: 1.05rem;
   height: 1.05rem;
   display: block;
+  pointer-events: none;
 }
 
 .ayah__fav--on {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .ayah__play {
