@@ -157,6 +157,7 @@ export function Header() {
             <Link
               href="/"
               className={navClass('/', true)}
+              prefetch
               onPointerEnter={() => prefetchRoute('/')}
             >
               {t('Главная', 'Home')}
@@ -164,6 +165,7 @@ export function Header() {
             <Link
               href="/quran"
               className={navClass('/quran')}
+              prefetch
               onPointerEnter={() => prefetchRoute('/quran')}
             >
               {t('Коран', 'Qur’an')}
@@ -171,6 +173,7 @@ export function Header() {
             <Link
               href="/hadith"
               className={navClass('/hadith')}
+              prefetch
               onPointerEnter={() => prefetchRoute('/hadith')}
             >
               {t('Хадисы', 'Hadith')}
@@ -178,6 +181,7 @@ export function Header() {
             <Link
               href="/about"
               className={navClass('/about')}
+              prefetch
               onPointerEnter={() => prefetchRoute('/about')}
             >
               {t('О проекте', 'About')}

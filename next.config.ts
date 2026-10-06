@@ -24,6 +24,14 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  experimental: {
+    // Dynamic pages (lang cookie) stay in the client router cache so tab
+    // switches, including back to the page you landed on, do not refetch.
+    staleTimes: {
+      dynamic: 300,
+      static: 300,
+    },
+  },
   async headers() {
     return [
       {
