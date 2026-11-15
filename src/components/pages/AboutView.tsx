@@ -22,33 +22,16 @@ export function AboutView() {
 
   return (
     <article className="about">
-      <header className="about__head">
-        <p className="about__kicker">Tilāwah</p>
-        <h1>{t('О проекте', 'About')}</h1>
-        <p className="about__lead">
-          {t(
-            'Зачем нужен Tilāwah и чем он не является.',
-            'What Tilāwah is for and what it is not.',
-          )}
-        </p>
-      </header>
-
       <section className="about-card">
         <span className="about-card__icon" aria-hidden>
           <BookOpen strokeWidth={2} />
         </span>
         <div className="about-card__body">
-          <h2>{t('Что это', 'What this is')}</h2>
+          <h1>{t('О Tilāwah', 'About Tilāwah')}</h1>
           <p>
             {t(
-              'Tilāwah - минималистичный ридер Корана и хадисов. Цель простая: спокойно читать арабский текст рядом с переводом, без лишнего шума, рекламы и сложных кабинетов.',
-              'Tilāwah is a minimal Qur’an and Hadith reader. The goal is simple: read Arabic text beside a translation calmly - no noise, ads, or heavy accounts.',
-            )}
-          </p>
-          <p>
-            {t(
-              'Это не официальное издание и не Quran.com. Удобный ридер для личного чтения.',
-              'This is not an official print edition and not Quran.com. It is a convenient reader for personal study.',
+              'Tilāwah — сайт для чтения Корана и хадисов. Арабский текст и перевод можно читать рядом, а размер шрифта и тему настроить под себя.',
+              'Tilāwah is a site for reading the Qur’an and Hadith. You can read the Arabic text alongside a translation and choose the font size and theme that suit you.',
             )}
           </p>
         </div>
@@ -59,12 +42,12 @@ export function AboutView() {
           <ScrollText strokeWidth={2} />
         </span>
         <div className="about-card__body">
-          <h2>{t('Что внутри', 'What’s inside')}</h2>
+          <h2>{t('Чтение и аудио', 'Reading and audio')}</h2>
           <ul>
             <li>
               {t(
-                'Все 114 сур Корана с арабским текстом и переводом (русский / English).',
-                'All 114 Qur’an surahs with Arabic text and translation (Russian / English).',
+                'Все 114 сур Корана с арабским текстом и переводами на русский и английский.',
+                'All 114 surahs in Arabic, with Russian and English translations.',
               )}
             </li>
             <li>
@@ -75,20 +58,14 @@ export function AboutView() {
             </li>
             <li>
               {t(
-                'Озвучка суры целиком с подсветкой слов. Чтецы: Абу Бакр аш-Шатри и Мишари Аль-Афаси.',
-                'Full-surah audio with word highlighting. Reciters: Abu Bakr ash-Shatri and Mishary Al-Afasy.',
+                'Можно слушать суры и следить за словами, которые подсвечиваются во время чтения.',
+                'Listen to surah recitations and follow along as the words are highlighted.',
               )}
             </li>
             <li>
               {t(
-                'Избранное и копирование аятов и хадисов - на этом устройстве.',
-                'Favorites and copy for ayahs and hadith - stored on this device.',
-              )}
-            </li>
-            <li>
-              {t(
-                'Русский и English интерфейс, светлая и тёмная тема, размер шрифта.',
-                'Russian and English interface, light and dark theme, font size.',
+                'Аяты и хадисы можно скопировать или добавить в избранное.',
+                'You can copy ayahs and hadith or save them to your favorites.',
               )}
             </li>
           </ul>
@@ -100,90 +77,93 @@ export function AboutView() {
           <Library strokeWidth={2} />
         </span>
         <div className="about-card__body">
-          <h2>{t('Источники', 'Sources')}</h2>
-          <p>
-            {t(
-              'Тексты Корана и хадисов - из открытых quran-api и hadith-api (jsDelivr). Озвучка и тайминги слов - из API Quran.com.',
-              'Qur’an and Hadith texts come from the open quran-api and hadith-api (jsDelivr). Audio and word timings come from the Quran.com API.',
-            )}
-          </p>
-          <ul>
-            <li>
+          <h2>{t('Источники текстов и аудио', 'Text and audio sources')}</h2>
+          <div className="about-source">
+            <h3>{t('Коран', 'Qur’an')}</h3>
+            <p>
               {t(
-                'Коран: арабский Усмани (Хафс, Комплекс короля Фахда); RU - Эльмир Кулиев; EN - Umm Muhammad. Через ',
-                'Qur’an: Uthmani Arabic (Hafs, King Fahd Complex); RU - Elmir Kuliev; EN - Umm Muhammad. Via ',
+                'Арабский текст в письме Усмани, чтение Хафса (Комплекс короля Фахда). Русский перевод — Эльмир Кулиев, английский — Umm Muhammad. Тексты доступны через ',
+                'The Arabic text uses Uthmani script and the Hafs reading (King Fahd Complex). The Russian translation is by Elmir Kuliev and the English translation is by Umm Muhammad. The texts come from ',
               )}
               <a href={QURAN_API} target="_blank" rel="noopener noreferrer">
                 quran-api
               </a>
               .
-            </li>
-            <li>
+            </p>
+          </div>
+          <div className="about-source">
+            <h3>{t('Аудио', 'Audio')}</h3>
+            <p>
               {t(
-                'Озвучка: файлы чтения и тайминги слов - ',
-                'Audio: recitation files and word timings - ',
+                'Записи чтения и данные для подсветки слов берём из API ',
+                'Recitation audio and word timings come from the API provided by ',
               )}
               <a href={QURAN_COM} target="_blank" rel="noopener noreferrer">
                 Quran.com
               </a>
               {t(
-                ' API. Чтецы: Абу Бакр аш-Шатри и Мишари Аль-Афаси.',
-                ' API. Reciters: Abu Bakr ash-Shatri and Mishary Al-Afasy.',
+                '. Можно выбрать Абу Бакра аш-Шатри или Мишари Аль-Афаси.',
+                '. You can choose Abu Bakr ash-Shatri or Mishary Al-Afasy.',
               )}
-            </li>
-            <li>
-              {t(
-                'Сахих аль-Бухари - RU: Abdullah Nirsha / редакторы Daura.com (',
-                'Sahih al-Bukhari - RU: Abdullah Nirsha / Daura.com editors (',
-              )}
-              <a
-                href="https://isnad.link/book/sahih-al-buhari"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                isnad.link
-              </a>
-              {t('); EN: Muhsin Khan. Через ', '); EN: Muhsin Khan. Via ')}
-              <a href={HADITH_API} target="_blank" rel="noopener noreferrer">
-                hadith-api
-              </a>
-              .
-            </li>
-            <li>
-              {t('Сахих Муслим - RU: издание с ', 'Sahih Muslim - RU: ')}
-              <a
-                href="https://isnad.link/book/sahih-muslim"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                isnad.link
-              </a>
-              {t(
-                ' (автор в источнике не указан); EN: Abdul Hamid Siddiqui.',
-                ' edition (author not listed upstream); EN: Abdul Hamid Siddiqui.',
-              )}
-            </li>
-            <li>
-              {t('Сунан Абу Дауд - RU: издание с ', 'Sunan Abu Dawud - RU: ')}
-              <a
-                href="https://isnad.link/book/sunan-abu-dauda"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                isnad.link
-              </a>
-              {t(
-                ' (автор в источнике не указан); EN: hadith-api (автор не указан).',
-                ' edition (author not listed upstream); EN: hadith-api (author not listed).',
-              )}
-            </li>
-            <li>
-              {t(
-                'Сунан ат-Тирмизи, Сунан ан-Насаи, Сунан ибн Маджа - RU пока нет (показывается пометка); EN: hadith-api.',
-                'Sunan at-Tirmidhi, Sunan an-Nasa’i, Sunan Ibn Majah - no RU yet (a notice is shown); EN: hadith-api.',
-              )}
-            </li>
-          </ul>
+            </p>
+          </div>
+          <div className="about-source">
+            <h3>{t('Хадисы', 'Hadith')}</h3>
+            <ul>
+              <li>
+                {t(
+                  'Для «Сахиха аль-Бухари» используем русский перевод Абдуллы Нирши в редакции Daura.com (',
+                  'For Sahih al-Bukhari, we use the Russian translation by Abdullah Nirsha, edited by Daura.com (',
+                )}
+                <a
+                  href="https://isnad.link/book/sahih-al-buhari"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  isnad.link
+                </a>
+                {t('). Английский перевод Мухсина Хана берём из ', '). Muhsin Khan’s English translation comes from ')}
+                <a href={HADITH_API} target="_blank" rel="noopener noreferrer">
+                  hadith-api
+                </a>
+                .
+              </li>
+              <li>
+                {t('Русский текст «Сахиха Муслима» берём с ', 'The Russian edition of Sahih Muslim comes from ')}
+                <a
+                  href="https://isnad.link/book/sahih-muslim"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  isnad.link
+                </a>
+                {t(
+                  '. В этом издании имя переводчика не указано. Английский перевод — Абдул Хамид Сиддики.',
+                  '. That edition does not name a translator. The English translation is by Abdul Hamid Siddiqui.',
+                )}
+              </li>
+              <li>
+                {t('Русский текст «Сунана Абу Дауда» берём с ', 'The Russian edition of Sunan Abu Dawud comes from ')}
+                <a
+                  href="https://isnad.link/book/sunan-abu-dauda"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  isnad.link
+                </a>
+                {t(
+                  ', английский — из hadith-api. В этих источниках имена переводчиков не указаны.',
+                  ', and the English translation comes from hadith-api. These sources do not name the translators.',
+                )}
+              </li>
+              <li>
+                {t(
+                  'Для сборников ат-Тирмизи, ан-Насаи и Ибн Маджи пока доступен английский перевод из hadith-api. Если русского перевода нет, об этом есть пометка.',
+                  'Sunan at-Tirmidhi, Sunan an-Nasa’i, and Sunan Ibn Majah are available in English through hadith-api. The reader shows a note where a Russian translation is unavailable.',
+                )}
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -192,11 +172,11 @@ export function AboutView() {
           <CircleAlert strokeWidth={2} />
         </span>
         <div>
-          <h2>{t('Важно знать', 'Disclaimer')}</h2>
+          <h2>{t('О переводах', 'About the translations')}</h2>
           <p>
             {t(
-              'Это не фетва и не замена учёному. Тексты - для личного чтения. Русский перевод хадисов берётся только из изданий isnad.link; где его нет, показывается пометка. В сложных вопросах лучше обратиться к знающему человеку.',
-              'This is not a fatwa and not a substitute for a scholar. The texts are for personal reading. Russian hadith translations come only from isnad.link editions; where none exist, a notice is shown. For complex matters, ask a knowledgeable person.',
+              'Переводы помогают понять общий смысл текста. Для более подробного разбора аятов можно обратиться к тафсирам, а для хадисов — к комментариям к сборникам.',
+              'Translations help you understand the general meaning of the text. For more context, you can refer to tafsir for Qur’an verses and to commentaries on the Hadith collections.',
             )}
           </p>
         </div>
@@ -207,26 +187,11 @@ export function AboutView() {
           <ShieldCheck strokeWidth={2} />
         </span>
         <div className="about-card__body">
-          <h2>{t('Приватность', 'Privacy')}</h2>
+          <h2>{t('Настройки и чтение офлайн', 'Settings and offline reading')}</h2>
           <p>
             {t(
-              'Нет регистрации и облачного аккаунта. Язык, тема, избранное, размер шрифта и прогресс чтения живут локально в браузере. Сайт можно поставить как приложение: уже открытые разделы и озвучка кэшируются на устройстве. Данные не продаются и не уходят в аналитику.',
-              'No sign-up and no cloud account. Language, theme, favorites, font size, and reading progress stay locally in the browser. You can install it as an app: visited sections and recitation cache on the device. Nothing is sold or shipped to analytics.',
-            )}
-          </p>
-        </div>
-      </section>
-
-      <section className="about-card">
-        <span className="about-card__icon" aria-hidden>
-          <SiGithub color="currentColor" size={20} title="" aria-hidden />
-        </span>
-        <div className="about-card__body">
-          <h2>{t('Исходный код', 'Source')}</h2>
-          <p>
-            {t(
-              'Tilāwah - свободная программа с открытым исходным кодом. Репозиторий, ошибки и предложения на GitHub.',
-              'Tilāwah is free and open source. The repository, issues, and ideas are on GitHub.',
+              'Браузер запоминает избранное и настройки чтения. Tilāwah можно установить как приложение. Если браузер уже сохранил раздел или запись на устройстве, их можно открыть без интернета.',
+              'Your browser remembers your favorites and reading settings. You can install Tilāwah as an app and open sections and recordings offline once your browser has saved them.',
             )}
           </p>
         </div>
@@ -242,14 +207,14 @@ export function AboutView() {
           <SiGithub color="currentColor" size={20} title="" aria-hidden />
           <span>
             <strong>GitHub</strong>
-            <em>{t('Код, ошибки и идеи', 'Code, issues, and ideas')}</em>
+            <em>{t('Код проекта и сообщения об ошибках', 'Project code and issue reports')}</em>
           </span>
         </a>
         <Link href="/quran" className="about-cta">
           <BookOpen strokeWidth={2} aria-hidden />
           <span>
             <strong>{t('Коран', 'Qur’an')}</strong>
-            <em>{t('Открыть суры и читать', 'Open the surahs and read')}</em>
+            <em>{t('Открыть список сур', 'Browse the surahs')}</em>
           </span>
         </Link>
       </div>

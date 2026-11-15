@@ -45,6 +45,7 @@
   max-width: 36rem;
 }
 
+.about-card h1,
 .about-card h2,
 .about-alert h2 {
   margin: 0;
@@ -106,6 +107,22 @@
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+}
+
+.about-source {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.about-source + .about-source {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.about-source h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .about-card {
