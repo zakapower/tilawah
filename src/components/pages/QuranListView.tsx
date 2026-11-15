@@ -49,13 +49,20 @@ export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
     return filterSurahs(surahs, query)
   }, [surahs, query, ayahTarget])
 
+  function rememberSurah(surah: number) {
+    saveListScroll('/quran')
+    saveLastSurah(surah)
+  }
+
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault()
     if (ayahTarget) {
+      rememberSurah(ayahTarget.surah.number)
       router.push(ayahRefPath(ayahTarget.ref))
       return
     }
     if (filtered.length === 1) {
+      rememberSurah(filtered[0].number)
       router.push(`/quran/${filtered[0].number}`)
     }
   }
@@ -113,6 +120,7 @@ export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
                 <Link
                   className="card-list__ayah-hit"
                   href={ayahRefPath(ayahTarget.ref)}
+                  onClick={() => rememberSurah(ayahTarget.surah.number)}
                 >
                   <span className="card-list__n">
                     {formatAyahRef(ayahTarget.ref)}
@@ -153,10 +161,7 @@ export function QuranListView({ surahs }: { surahs: SurahMeta[] }) {
                 <Link
                   href={`/quran/${s.number}`}
                   onPointerEnter={() => prefetchSurah(s.number, lang)}
-                  onClick={() => {
-                    saveListScroll('/quran')
-                    saveLastSurah(s.number)
-                  }}
+                  onClick={() => rememberSurah(s.number)}
                 >
                   <span className="card-list__n">
                     {String(s.number).padStart(2, '0')}
